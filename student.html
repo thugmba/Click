@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -6,9 +6,7 @@
   <title>Student View</title>
   <link rel="stylesheet" href="styles.css">
   <script type="module">
-    import {
-      initializeApp
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getFirestore,
       collection,
@@ -34,44 +32,75 @@
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get("session");
 
+    const actionButton = document.getElementById("actionButton");
+    const endedNotice = document.getElementById("ended");
+
+    const aliasOptions = [
+      "Aurora","Blaze","Comet","Echo","Flare","Jade","Nova","Orion","Quill","Rune",
+      "Sable","Tundra","Vesper","Willow","Zephyr","Atlas","Cinder","Harbor","Lumen","Sonic"
+    ];
+
+    function generateRandomName() {
+      return aliasOptions[Math.floor(Math.random() * aliasOptions.length)];
+    }
+
+    const aliasStorageKey = sessionId ? `click-alias-${sessionId}` : null;
+    let assignedName = aliasStorageKey ? localStorage.getItem(aliasStorageKey) : null;
+    if (!assignedName) {
+      assignedName = generateRandomName();
+      if (aliasStorageKey) {
+        try {
+          localStorage.setItem(aliasStorageKey, assignedName);
+        } catch (error) {
+          console.warn("Unable to persist alias", error);
+        }
+      }
+    }
+
     let myDocRef = null;
     let sessionUnsubscribe = null;
     let myDocUnsubscribe = null;
+    let sessionStatus = "connecting";
 
-    const joinArea = document.getElementById("joinArea");
-    const waiting = document.getElementById("waiting");
-    const playArea = document.getElementById("playArea");
-    const ended = document.getElementById("ended");
-    const actionButton = document.getElementById("actionButton");
+    if (actionButton) {
+      actionButton.disabled = true;
+      actionButton.textContent = "Connecting...";
+    }
 
     function resetActionButton() {
       if (!actionButton) return;
       delete actionButton.dataset.clicked;
-      actionButton.disabled = false;
-      actionButton.textContent = "I'm here!";
+      if (sessionStatus === "started") {
+        actionButton.disabled = false;
+        actionButton.textContent = "OK";
+      } else if (sessionStatus === "waiting") {
+        actionButton.disabled = true;
+        actionButton.textContent = "Waiting...";
+      }
     }
 
     function showWaitingState() {
-      document.body.classList.remove("student-live");
+      sessionStatus = "waiting";
+      if (endedNotice) endedNotice.classList.add("hidden");
       resetActionButton();
-      waiting.classList.remove("hidden");
-      playArea.classList.add("hidden");
-      ended.classList.add("hidden");
     }
 
     function showLiveState() {
-      document.body.classList.add("student-live");
-      waiting.classList.add("hidden");
-      ended.classList.add("hidden");
-      playArea.classList.remove("hidden");
+      sessionStatus = "started";
+      if (endedNotice) endedNotice.classList.add("hidden");
+      if (actionButton && !actionButton.dataset.clicked) {
+        actionButton.disabled = false;
+        actionButton.textContent = "OK";
+      }
     }
 
     function showEndedState() {
-      document.body.classList.remove("student-live");
-      resetActionButton();
-      waiting.classList.add("hidden");
-      playArea.classList.add("hidden");
-      ended.classList.remove("hidden");
+      sessionStatus = "ended";
+      if (actionButton) {
+        actionButton.disabled = true;
+        actionButton.textContent = "Done";
+      }
+      if (endedNotice) endedNotice.classList.remove("hidden");
       if (myDocUnsubscribe) {
         myDocUnsubscribe();
         myDocUnsubscribe = null;
@@ -117,86 +146,65 @@
             actionButton.textContent = "Sent!";
           }
         } else {
-          resetActionButton();
+          if (sessionStatus === "started") {
+            resetActionButton();
+          } else if (sessionStatus === "waiting") {
+            showWaitingState();
+          }
         }
       });
     }
 
     async function joinSession() {
       if (!sessionId) {
-        alert("Session link is missing. Please scan the QR code again.");
-        return;
-      }
-
-      const nameInput = document.getElementById("studentName");
-      const name = nameInput.value.trim();
-      if (!name) {
-        alert("Please enter your name before joining.");
-        nameInput.focus();
+        if (actionButton) {
+          actionButton.disabled = true;
+          actionButton.textContent = "No session";
+        }
         return;
       }
 
       if (!myDocRef) {
         myDocRef = await addDoc(collection(db, "sessions", sessionId, "students"), {
-          name: name,
+          name: assignedName,
           clicked: false,
           joinedAt: Date.now()
         });
         subscribeToMyDoc(myDocRef);
       }
 
-      joinArea.classList.add("hidden");
       showWaitingState();
       subscribeToSession();
     }
 
     async function clickButton() {
-      if (!myDocRef) return;
-      if (actionButton) {
-        actionButton.disabled = true;
-        actionButton.textContent = "Sending...";
-      }
+      if (!myDocRef || !actionButton) return;
+      actionButton.disabled = true;
+      actionButton.textContent = "Sending...";
 
       try {
         await updateDoc(myDocRef, { clicked: true, clickedAt: Date.now() });
       } catch (error) {
+        console.error("Failed to send click", error);
         resetActionButton();
-        alert("Something went wrong. Please try again.");
       }
     }
 
-    window.joinSession = joinSession;
+    joinSession().catch((error) => {
+      console.error("Unable to join session", error);
+      if (actionButton) {
+        actionButton.disabled = true;
+        actionButton.textContent = "Retry";
+      }
+    });
+
     window.clickButton = clickButton;
   </script>
 </head>
 <body class="student-page">
-  <div class="panel student-card">
-    <header class="student-card__header">
-      <h1>Join Your Class</h1>
-      <p class="student-card__description">Enter your name so your teacher knows you're ready.</p>
-    </header>
-
-    <div id="joinArea" class="student-section">
-      <label class="info-text" for="studentName">Your name</label>
-      <input id="studentName" type="text" placeholder="Enter your name" autocomplete="name">
-      <button onclick="joinSession()">Join Session</button>
-      <p class="info-text info-text--hint">Leave this page open after you join.</p>
-    </div>
-
-    <div id="waiting" class="student-section hidden">
-      <span class="status-badge">Waiting</span>
-      <p class="info-text">Hang tight! We'll unlock the button when your teacher starts the session.</p>
-    </div>
-
-    <div id="playArea" class="student-section hidden">
-      <button id="actionButton" onclick="clickButton()">I'm here!</button>
-      <p class="sr-only" id="playHint">Tap the button to let your teacher know you're here.</p>
-    </div>
-
-    <div id="ended" class="student-section hidden">
-      <span class="status-badge status-badge--ended">Session ended</span>
-      <p class="info-text">This session is finished. You can close this page now.</p>
-    </div>
+  <div class="student-wrapper">
+    <button id="actionButton" class="student-button" onclick="clickButton()" disabled>Connecting...</button>
+    <div id="ended" class="student-ended hidden">Session finished. Thanks!</div>
   </div>
 </body>
 </html>

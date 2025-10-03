@@ -67,14 +67,6 @@ html, body {
   align-items: center;
 }
 
-.session-id {
-  align-self: stretch;
-  font-weight: 600;
-  text-align: center;
-  padding: 12px;
-  border-radius: 8px;
-  background-color: #eef1ff;
-}
 
 #qrcode {
   display: block;
@@ -329,139 +321,58 @@ body.chart-mode .live-panel {
 }
 
 body.student-page {
+  margin: 0;
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 48px 32px;
-  background: linear-gradient(180deg, #f5f7ff 0%, #f5f5f5 100%);
-}
-
-.student-card {
-  width: min(480px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 32px;
-  text-align: center;
-}
-
-.student-card__header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.student-card__header h1 {
-  margin: 0;
-  font-size: 28px;
-}
-
-.student-card__description {
-  margin: 0;
-  color: #4a4a4a;
-  font-size: 16px;
-}
-
-.student-section {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.student-section input {
-  text-align: center;
-}
-
-.student-section button {
-  width: 100%;
-  font-size: 18px;
-  padding: 14px 18px;
-}
-
-.status-badge {
-  align-self: center;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background-color: #e7ecff;
-  color: #2c3d9f;
-  font-weight: 600;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.status-badge--ready {
-  background-color: #e8f9f1;
-  color: #1f8a50;
-}
-
-.status-badge--ended {
-  background-color: #ffecec;
-  color: #b12c2c;
-}
-
-.info-text {
-  margin: 0;
-  color: #4a4a4a;
-  font-size: 16px;
-}
-
-.info-text--hint {
-  font-size: 14px;
-  color: #6a6a6a;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-body.student-page.student-live {
-  align-items: stretch;
   background: radial-gradient(circle at top, #1f3b8a 0%, #0b1d58 55%, #050d2c 100%);
 }
 
-body.student-page.student-live .student-card {
-  width: 100%;
-  max-width: none;
-  height: 100%;
-  padding: 0 24px;
-  border-radius: 0;
-  box-shadow: none;
-  justify-content: center;
-  gap: 0;
-}
-
-body.student-page.student-live .student-card > *:not(#playArea) {
-  display: none !important;
-}
-
-body.student-page.student-live #playArea {
-  display: flex !important;
-  flex: 1;
+.student-wrapper {
+  position: relative;
+  display: flex;
   justify-content: center;
   align-items: center;
+  width: min(90vw, 420px);
+  height: min(90vw, 420px);
 }
 
-body.student-page.student-live #playArea button {
-  width: min(320px, 80%);
-  height: min(320px, 60vh);
-  font-size: clamp(1.6rem, 6vw, 2.8rem);
-  border-radius: 28px;
-  box-shadow: 0 18px 35px rgba(0, 0, 0, 0.25);
+.student-button {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 36px;
+  background-color: #3366ff;
+  color: #ffffff;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 600;
+  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.28);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.15s ease, background-color 0.2s ease;
 }
 
-body.student-page.student-live #playArea button:disabled {
-  opacity: 0.85;
+.student-button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.student-button:disabled {
+  background-color: #9baefc;
+  color: #eef1ff;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+}
+
+.student-ended {
+  position: absolute;
+  bottom: -56px;
+  width: 100%;
+  text-align: center;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.9);
+  pointer-events: none;
 }
 
 @media (max-width: 1100px) {
@@ -476,10 +387,6 @@ body.student-page.student-live #playArea button:disabled {
 }
 
 @media (max-width: 900px) {
-  button {
-    width: 100%;
-  }
-
   .session-panel__header {
     flex-direction: column;
     align-items: stretch;
@@ -499,7 +406,17 @@ body.student-page.student-live #playArea button:disabled {
   }
 
   body.student-page {
-    padding: 40px 24px;
+    padding: 32px 20px;
+  }
+
+  .student-wrapper {
+    width: min(92vw, 360px);
+    height: min(92vw, 360px);
+  }
+
+  .student-ended {
+    bottom: -36px;
+    font-size: 16px;
   }
 
   body.live-mode .live-panel__content {
@@ -518,44 +435,22 @@ body.student-page.student-live #playArea button:disabled {
   }
 
   body.student-page {
-    padding: 32px 16px;
+    padding: 24px 12px;
   }
 
-  .student-card {
-    padding: 24px 20px;
-    text-align: left;
-    gap: 20px;
+  .student-wrapper {
+    width: min(94vw, 300px);
+    height: min(94vw, 300px);
   }
 
-  .student-card__header {
-    align-items: flex-start;
-    text-align: left;
+  .student-button {
+    border-radius: 28px;
+    font-size: clamp(1.8rem, 8vw, 2.4rem);
   }
 
-  .student-card__header h1 {
-    font-size: 24px;
-  }
-
-  .student-card__description {
-    font-size: 15px;
-  }
-
-  .student-section {
-    gap: 12px;
-  }
-
-  .status-badge {
-    align-self: flex-start;
-    font-size: 13px;
-  }
-
-  .student-section button {
-    font-size: 17px;
-    padding: 14px;
-  }
-
-  body.student-page.student-live .student-card {
-    padding: 0 16px;
+  .student-ended {
+    bottom: -24px;
+    font-size: 14px;
   }
 
   #chartCanvas {
@@ -565,23 +460,27 @@ body.student-page.student-live #playArea button:disabled {
 
 @media (max-width: 400px) {
   body.student-page {
-    padding: 24px 12px;
+    padding: 20px 10px;
   }
 
-  .student-card {
-    padding: 20px 16px;
+  .student-wrapper {
+    width: 90vw;
+    height: 90vw;
   }
 
-  .student-section button {
-    font-size: 16px;
-    padding: 12px;
+  .student-button {
+    border-radius: 24px;
   }
 
-  body.student-page.student-live #playArea button {
-    border-radius: 20px;
+  .student-ended {
+    bottom: -18px;
+    font-size: 13px;
   }
 
   #chartCanvas {
     height: 280px;
   }
 }
+
+
+

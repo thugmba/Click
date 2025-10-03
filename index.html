@@ -6,7 +6,7 @@
   <title>Teacher Control Panel</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <script type="module">
+    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getFirestore,
@@ -44,8 +44,7 @@
     let currentSessionId = null;
     let studentsUnsubscribe = null;
     let latestCounts = { total: 0, clicked: 0 };
-    let sessionStartTime = null;
-    let sessionTimeline = [];
+    let resetHistory = [];
 
     function showSetupView() {
       document.body.classList.remove("live-mode", "chart-mode");
@@ -71,7 +70,6 @@
     }
 
     function resetUi() {
-      document.getElementById("sessionInfo").innerText = "";
       document.getElementById("status").innerText = "Create a session to begin.";
       document.getElementById("clickedCount").innerText = "0";
       document.getElementById("clickedPercent").innerText = "0%";
@@ -85,22 +83,7 @@
         qrCanvas.width = 0;
         qrCanvas.height = 0;
       }
-    }
-
-    function initialiseTimeline() {
-      sessionStartTime = Date.now();
-      sessionTimeline = [{ time: 0, clicked: latestCounts.clicked }];
-    }
-
-    function recordTimelinePoint(clicked) {
-      if (!sessionStartTime) return;
-      const time = (Date.now() - sessionStartTime) / 1000;
-      const last = sessionTimeline[sessionTimeline.length - 1];
-      if (!last || last.clicked !== clicked) {
-        sessionTimeline.push({ time, clicked });
-      } else {
-        last.time = time;
-      }
+      resetHistory = [];
     }
 
     function updateStudentCounts(total, clicked) {
@@ -109,14 +92,21 @@
       document.getElementById("clickedCount").innerText = clicked;
 
       const percent = total > 0 ? Math.round((clicked / total) * 100) : 0;
-      document.getElementById("clickedPercent").innerText = `${percent}%`;
-      document.getElementById("clickedDetail").innerText = `${clicked} of ${total} students`;
+      document.getElementById("clickedPercent").innerText = percent + "%";
+      document.getElementById("clickedDetail").innerText = clicked + " of " + total + " students";
+    }
 
-      recordTimelinePoint(clicked);
+    function addResetSnapshot() {
+      resetHistory.push({
+        index: resetHistory.length + 1,
+        clicked: latestCounts.clicked,
+        recordedAt: Date.now()
+      });
     }
 
     async function newSession() {
       showSetupView();
+      resetHistory = [];
 
       if (studentsUnsubscribe) {
         studentsUnsubscribe();
@@ -125,8 +115,6 @@
 
       currentSessionId = Math.random().toString(36).substring(2, 8);
       if (startButton) startButton.disabled = false;
-      sessionStartTime = null;
-      sessionTimeline = [];
 
       await setDoc(doc(db, "sessions", currentSessionId), {
         status: "waiting",
@@ -134,7 +122,7 @@
         round: 0
       });
 
-      const studentUrl = `http://192.168.10.2:8000/student.html?session=${currentSessionId}`;
+      const studentUrl = "http://192.168.10.2:8000/student.html?session=" + currentSessionId;
 
       if (qrCanvas) {
         qrCanvas.width = 0;
@@ -142,7 +130,6 @@
         QRCode.toCanvas(qrCanvas, studentUrl, { width: 400 });
       }
 
-      document.getElementById("sessionInfo").innerText = `Session ID: ${currentSessionId}`;
       document.getElementById("status").innerText = "Share the QR code so students can join.";
 
       if (studentsList) studentsList.innerHTML = "";
@@ -178,13 +165,13 @@
         round: increment(1)
       });
       if (startButton) startButton.disabled = true;
-      initialiseTimeline();
       showLiveView();
     }
 
     async function resetSession() {
       if (!currentSessionId) return;
-      recordTimelinePoint(latestCounts.clicked);
+
+      addResetSnapshot();
 
       const sessionDocRef = doc(db, "sessions", currentSessionId);
       const studentsRef = collection(db, "sessions", currentSessionId, "students");
@@ -210,8 +197,6 @@
     async function finishSession() {
       if (!currentSessionId) return;
 
-      recordTimelinePoint(latestCounts.clicked);
-
       try {
         await updateDoc(doc(db, "sessions", currentSessionId), {
           status: "ended",
@@ -233,8 +218,6 @@
 
     function closeChart() {
       currentSessionId = null;
-      sessionStartTime = null;
-      sessionTimeline = [];
       resetUi();
       showSetupView();
     }
@@ -252,13 +235,25 @@
 
       context.clearRect(0, 0, width, height);
 
-      const data = sessionTimeline.length ? sessionTimeline : [{ time: 0, clicked: 0 }];
-      const maxTime = data[data.length - 1].time || 1;
-      const maxClicked = data.reduce((max, point) => Math.max(max, point.clicked), 1);
-
       const padding = 48 * dpr;
       const chartWidth = width - padding * 2;
       const chartHeight = height - padding * 2;
+
+      if (!resetHistory.length) {
+        context.fillStyle = "#6b7280";
+        context.font = (18 * dpr) + "px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText("No reset data recorded yet.", width / 2, height / 2);
+        return;
+      }
+
+      const maxClicked = Math.max(1, ...resetHistory.map(entry => entry.clicked));
+      const lastIndex = resetHistory.length - 1;
+      const getX = (index) => {
+        if (lastIndex === 0) return padding + chartWidth / 2;
+        return padding + chartWidth * (index / lastIndex);
+      };
 
       context.strokeStyle = "#d0d4e4";
       context.lineWidth = 1 * dpr;
@@ -271,9 +266,9 @@
       context.strokeStyle = "#4c6ef5";
       context.lineWidth = 2 * dpr;
       context.beginPath();
-      data.forEach((point, index) => {
-        const x = padding + (chartWidth * (point.time / maxTime));
-        const y = height - padding - (chartHeight * (point.clicked / maxClicked));
+      resetHistory.forEach((entry, index) => {
+        const x = getX(index);
+        const y = height - padding - (chartHeight * (entry.clicked / maxClicked));
         if (index === 0) {
           context.moveTo(x, y);
         } else {
@@ -282,23 +277,40 @@
       });
       context.stroke();
 
-      context.fillStyle = "#4c6ef5";
-      data.forEach((point) => {
-        const x = padding + (chartWidth * (point.time / maxTime));
-        const y = height - padding - (chartHeight * (point.clicked / maxClicked));
+      resetHistory.forEach((entry, index) => {
+        const x = getX(index);
+        const y = height - padding - (chartHeight * (entry.clicked / maxClicked));
+        context.fillStyle = "#4c6ef5";
         context.beginPath();
         context.arc(x, y, 4 * dpr, 0, Math.PI * 2);
         context.fill();
+
+        context.fillStyle = "#1f1f1f";
+        context.font = (12 * dpr) + "px Arial";
+        context.textAlign = "center";
+        context.textBaseline = "bottom";
+        context.fillText(entry.clicked, x, y - 8 * dpr);
       });
 
       context.fillStyle = "#6b7280";
-      context.font = `${12 * dpr}px Arial`;
-      context.fillText("Time (seconds)", width / 2 - 60 * dpr, height - padding / 2);
+      context.font = (12 * dpr) + "px Arial";
+      context.textAlign = "center";
+      context.textBaseline = "top";
+      context.fillText("Reset Number", padding + chartWidth / 2, height - padding / 2);
       context.save();
-      context.translate(padding / 2, height / 2 + 60 * dpr);
+      context.translate(padding / 2, padding + chartHeight / 2);
       context.rotate(-Math.PI / 2);
       context.fillText("Students clicked", 0, 0);
       context.restore();
+
+      context.fillStyle = "#6b7280";
+      context.font = (12 * dpr) + "px Arial";
+      context.textAlign = "center";
+      context.textBaseline = "top";
+      resetHistory.forEach((entry, index) => {
+        const x = getX(index);
+        context.fillText(String(index + 1), x, height - padding + 16 * dpr);
+      });
     }
 
     function initialiseDom() {
@@ -321,7 +333,7 @@
     window.resetSession = resetSession;
     window.finishSession = finishSession;
     window.closeChart = closeChart;
-  </script>
+  </script></script>
 </head>
 <body>
   <div class="main-layout" id="mainLayout">
@@ -332,7 +344,6 @@
       </div>
       <p id="status" class="status-message">Create a session to begin.</p>
       <div class="session-panel__qr">
-        <div id="sessionInfo" class="session-id"></div>
         <canvas id="qrcode"></canvas>
       </div>
     </section>
@@ -366,3 +377,13 @@
   </section>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
