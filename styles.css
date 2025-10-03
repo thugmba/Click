@@ -362,19 +362,6 @@ body.student-page {
 }
 
 
-.student-button:not(:disabled):active {
-  transform: scale(0.97);
-}
-
-
-.student-button:disabled {
-  background-color: #9baefc;
-  color: #eef1ff;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
-  transform: none;
-}
-
-
 
 .student-button:not(:disabled):active {
   transform: scale(0.97);
