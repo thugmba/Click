@@ -1,15 +1,25 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>교사용 화면</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teacher Control Panel</title>
+  <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, setDoc, collection, onSnapshot, updateDoc } 
-      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      collection,
+      onSnapshot,
+      updateDoc,
+      getDocs,
+      writeBatch,
+      increment
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // 🔑 Firebase 설정 (본인 프로젝트 설정으로 교체)
     const firebaseConfig = {
         apiKey: "AIzaSyD6EWEz8M1XtS9RBZwVamu2fpRrqHMdG0M",
         authDomain: "click-6bcfe.firebaseapp.com",
@@ -23,60 +33,336 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    let mainLayout;
+    let livePanel;
+    let chartPanel;
+    let startButton;
+    let qrCanvas;
+    let studentsList;
+    let chartCanvas;
+
     let currentSessionId = null;
+    let studentsUnsubscribe = null;
+    let latestCounts = { total: 0, clicked: 0 };
+    let sessionStartTime = null;
+    let sessionTimeline = [];
+
+    function showSetupView() {
+      document.body.classList.remove("live-mode", "chart-mode");
+      if (mainLayout) mainLayout.classList.remove("hidden");
+      if (livePanel) livePanel.classList.add("hidden");
+      if (chartPanel) chartPanel.classList.add("hidden");
+    }
+
+    function showLiveView() {
+      document.body.classList.add("live-mode");
+      document.body.classList.remove("chart-mode");
+      if (mainLayout) mainLayout.classList.add("hidden");
+      if (livePanel) livePanel.classList.remove("hidden");
+      if (chartPanel) chartPanel.classList.add("hidden");
+    }
+
+    function showChartView() {
+      document.body.classList.remove("live-mode");
+      document.body.classList.add("chart-mode");
+      if (mainLayout) mainLayout.classList.add("hidden");
+      if (livePanel) livePanel.classList.add("hidden");
+      if (chartPanel) chartPanel.classList.remove("hidden");
+    }
+
+    function resetUi() {
+      document.getElementById("sessionInfo").innerText = "";
+      document.getElementById("status").innerText = "Create a session to begin.";
+      document.getElementById("clickedCount").innerText = "0";
+      document.getElementById("clickedPercent").innerText = "0%";
+      document.getElementById("clickedDetail").innerText = "0 of 0 students";
+
+      if (startButton) startButton.disabled = true;
+      if (studentsList) studentsList.innerHTML = "";
+      if (qrCanvas) {
+        const context = qrCanvas.getContext("2d");
+        if (context) context.clearRect(0, 0, qrCanvas.width || 400, qrCanvas.height || 400);
+        qrCanvas.width = 0;
+        qrCanvas.height = 0;
+      }
+    }
+
+    function initialiseTimeline() {
+      sessionStartTime = Date.now();
+      sessionTimeline = [{ time: 0, clicked: latestCounts.clicked }];
+    }
+
+    function recordTimelinePoint(clicked) {
+      if (!sessionStartTime) return;
+      const time = (Date.now() - sessionStartTime) / 1000;
+      const last = sessionTimeline[sessionTimeline.length - 1];
+      if (!last || last.clicked !== clicked) {
+        sessionTimeline.push({ time, clicked });
+      } else {
+        last.time = time;
+      }
+    }
+
+    function updateStudentCounts(total, clicked) {
+      latestCounts = { total, clicked };
+
+      document.getElementById("clickedCount").innerText = clicked;
+
+      const percent = total > 0 ? Math.round((clicked / total) * 100) : 0;
+      document.getElementById("clickedPercent").innerText = `${percent}%`;
+      document.getElementById("clickedDetail").innerText = `${clicked} of ${total} students`;
+
+      recordTimelinePoint(clicked);
+    }
 
     async function newSession() {
-      // 무작위 세션 ID 생성
-      currentSessionId = Math.random().toString(36).substring(2, 8);
+      showSetupView();
 
-      // Firestore에 세션 문서 생성
+      if (studentsUnsubscribe) {
+        studentsUnsubscribe();
+        studentsUnsubscribe = null;
+      }
+
+      currentSessionId = Math.random().toString(36).substring(2, 8);
+      if (startButton) startButton.disabled = false;
+      sessionStartTime = null;
+      sessionTimeline = [];
+
       await setDoc(doc(db, "sessions", currentSessionId), {
         status: "waiting",
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        round: 0
       });
 
-      // 학생 접속용 URL
-      const studentUrl = 
-        `${window.location.origin}${window.location.pathname.replace("index.html","")}student.html?session=${currentSessionId}`;
+      const studentUrl = `http://192.168.10.2:8000/student.html?session=${currentSessionId}`;
 
-      // QR코드 생성
-      const qrCanvas = document.getElementById("qrcode");
-      qrCanvas.innerHTML = "";
-      QRCode.toCanvas(qrCanvas, studentUrl, { width: 200 });
+      if (qrCanvas) {
+        qrCanvas.width = 0;
+        qrCanvas.height = 0;
+        QRCode.toCanvas(qrCanvas, studentUrl, { width: 400 });
+      }
 
-      document.getElementById("sessionInfo").innerText = "세션 ID: " + currentSessionId;
+      document.getElementById("sessionInfo").innerText = `Session ID: ${currentSessionId}`;
+      document.getElementById("status").innerText = "Share the QR code so students can join.";
 
-      // 대기실 학생 표시
+      if (studentsList) studentsList.innerHTML = "";
+      updateStudentCounts(0, 0);
+
       const studentsRef = collection(db, "sessions", currentSessionId, "students");
-      onSnapshot(studentsRef, (snapshot) => {
-        const list = document.getElementById("students");
-        list.innerHTML = "";
-        snapshot.forEach(doc => {
-          let li = document.createElement("li");
-          li.textContent = doc.data().name + (doc.data().clicked ? " ✅" : "");
-          list.appendChild(li);
+      studentsUnsubscribe = onSnapshot(studentsRef, (snapshot) => {
+        if (studentsList) studentsList.innerHTML = "";
+        let clicked = 0;
+
+        snapshot.forEach(studentDoc => {
+          const data = studentDoc.data();
+          if (data.clicked) clicked += 1;
+
+          if (studentsList) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = data.clicked ? "student-item student-item--clicked" : "student-item";
+            btn.textContent = data.name || "Unnamed";
+            studentsList.appendChild(btn);
+          }
         });
+
+        updateStudentCounts(snapshot.size, clicked);
       });
     }
 
     async function startSession() {
       if (!currentSessionId) return;
-      await updateDoc(doc(db, "sessions", currentSessionId), { status: "started" });
-      document.getElementById("status").innerText = "세션 시작!";
+      await updateDoc(doc(db, "sessions", currentSessionId), {
+        status: "started",
+        startedAt: Date.now(),
+        round: increment(1)
+      });
+      if (startButton) startButton.disabled = true;
+      initialiseTimeline();
+      showLiveView();
     }
+
+    async function resetSession() {
+      if (!currentSessionId) return;
+      recordTimelinePoint(latestCounts.clicked);
+
+      const sessionDocRef = doc(db, "sessions", currentSessionId);
+      const studentsRef = collection(db, "sessions", currentSessionId, "students");
+      const snapshot = await getDocs(studentsRef);
+
+      if (!snapshot.empty) {
+        const batch = writeBatch(db);
+        snapshot.forEach((studentDoc) => {
+          batch.update(studentDoc.ref, { clicked: false });
+        });
+        await batch.commit();
+      }
+
+      await updateDoc(sessionDocRef, {
+        status: "started",
+        round: increment(1)
+      });
+
+      updateStudentCounts(snapshot.size, 0);
+      showLiveView();
+    }
+
+    async function finishSession() {
+      if (!currentSessionId) return;
+
+      recordTimelinePoint(latestCounts.clicked);
+
+      try {
+        await updateDoc(doc(db, "sessions", currentSessionId), {
+          status: "ended",
+          endedAt: Date.now()
+        });
+      } catch (error) {
+        console.warn("Unable to set session to ended", error);
+      }
+
+      if (studentsUnsubscribe) {
+        studentsUnsubscribe();
+        studentsUnsubscribe = null;
+      }
+
+      showChartView();
+      requestAnimationFrame(drawChart);
+      if (startButton) startButton.disabled = true;
+    }
+
+    function closeChart() {
+      currentSessionId = null;
+      sessionStartTime = null;
+      sessionTimeline = [];
+      resetUi();
+      showSetupView();
+    }
+
+    function drawChart() {
+      if (!chartCanvas) return;
+      const context = chartCanvas.getContext("2d");
+      if (!context) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const width = chartCanvas.clientWidth * dpr;
+      const height = chartCanvas.clientHeight * dpr;
+      chartCanvas.width = width;
+      chartCanvas.height = height;
+
+      context.clearRect(0, 0, width, height);
+
+      const data = sessionTimeline.length ? sessionTimeline : [{ time: 0, clicked: 0 }];
+      const maxTime = data[data.length - 1].time || 1;
+      const maxClicked = data.reduce((max, point) => Math.max(max, point.clicked), 1);
+
+      const padding = 48 * dpr;
+      const chartWidth = width - padding * 2;
+      const chartHeight = height - padding * 2;
+
+      context.strokeStyle = "#d0d4e4";
+      context.lineWidth = 1 * dpr;
+      context.beginPath();
+      context.moveTo(padding, padding);
+      context.lineTo(padding, height - padding);
+      context.lineTo(width - padding, height - padding);
+      context.stroke();
+
+      context.strokeStyle = "#4c6ef5";
+      context.lineWidth = 2 * dpr;
+      context.beginPath();
+      data.forEach((point, index) => {
+        const x = padding + (chartWidth * (point.time / maxTime));
+        const y = height - padding - (chartHeight * (point.clicked / maxClicked));
+        if (index === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      });
+      context.stroke();
+
+      context.fillStyle = "#4c6ef5";
+      data.forEach((point) => {
+        const x = padding + (chartWidth * (point.time / maxTime));
+        const y = height - padding - (chartHeight * (point.clicked / maxClicked));
+        context.beginPath();
+        context.arc(x, y, 4 * dpr, 0, Math.PI * 2);
+        context.fill();
+      });
+
+      context.fillStyle = "#6b7280";
+      context.font = `${12 * dpr}px Arial`;
+      context.fillText("Time (seconds)", width / 2 - 60 * dpr, height - padding / 2);
+      context.save();
+      context.translate(padding / 2, height / 2 + 60 * dpr);
+      context.rotate(-Math.PI / 2);
+      context.fillText("Students clicked", 0, 0);
+      context.restore();
+    }
+
+    function initialiseDom() {
+      mainLayout = document.getElementById("mainLayout");
+      livePanel = document.getElementById("livePanel");
+      chartPanel = document.getElementById("chartPanel");
+      startButton = document.getElementById("startButton");
+      qrCanvas = document.getElementById("qrcode");
+      studentsList = document.getElementById("students");
+      chartCanvas = document.getElementById("chartCanvas");
+
+      resetUi();
+      showSetupView();
+    }
+
+    window.addEventListener("DOMContentLoaded", initialiseDom);
 
     window.newSession = newSession;
     window.startSession = startSession;
+    window.resetSession = resetSession;
+    window.finishSession = finishSession;
+    window.closeChart = closeChart;
   </script>
 </head>
 <body>
-  <h2>교사용 화면</h2>
-  <button onclick="newSession()">새 세션 시작</button>
-  <div id="sessionInfo"></div>
-  <canvas id="qrcode"></canvas>
-  <h3>대기실</h3>
-  <ul id="students"></ul>
-  <button onclick="startSession()">시작</button>
-  <p id="status"></p>
+  <div class="main-layout" id="mainLayout">
+    <section class="panel session-panel">
+      <div class="session-panel__header">
+        <h2>Teacher Control Panel</h2>
+        <button class="session-panel__create" onclick="newSession()">Create Session</button>
+      </div>
+      <p id="status" class="status-message">Create a session to begin.</p>
+      <div class="session-panel__qr">
+        <div id="sessionInfo" class="session-id"></div>
+        <canvas id="qrcode"></canvas>
+      </div>
+    </section>
+
+    <section class="panel students-panel">
+      <div class="students-panel__header">
+        <h3>Joined Students</h3>
+        <button id="startButton" onclick="startSession()" disabled>Start Session</button>
+      </div>
+      <div id="students" class="students-list"></div>
+    </section>
+  </div>
+
+  <section class="panel live-panel hidden" id="livePanel">
+    <div class="live-panel__content">
+      <p class="live-panel__label">Students clicked</p>
+      <p class="live-panel__count" id="clickedCount">0</p>
+      <p class="live-panel__percent" id="clickedPercent">0%</p>
+      <p class="live-panel__detail" id="clickedDetail">0 of 0 students</p>
+      <div class="live-panel__actions">
+        <button class="live-panel__reset" onclick="resetSession()">Reset Session</button>
+        <button class="live-panel__finish" onclick="finishSession()">Finish</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel chart-panel hidden" id="chartPanel">
+    <h2>Session Summary</h2>
+    <canvas id="chartCanvas"></canvas>
+    <button class="chart-panel__ok" onclick="closeChart()">OK</button>
+  </section>
 </body>
 </html>

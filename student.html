@@ -1,14 +1,23 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>학생 화면</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student View</title>
+  <link rel="stylesheet" href="styles.css">
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc } 
-      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      initializeApp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      doc,
+      onSnapshot,
+      updateDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // 🔑 Firebase 설정 (교사용과 동일하게 교체)
     const firebaseConfig = {
         apiKey: "AIzaSyD6EWEz8M1XtS9RBZwVamu2fpRrqHMdG0M",
         authDomain: "click-6bcfe.firebaseapp.com",
@@ -26,51 +35,168 @@
     const sessionId = urlParams.get("session");
 
     let myDocRef = null;
+    let sessionUnsubscribe = null;
+    let myDocUnsubscribe = null;
 
-    async function joinSession() {
-      const name = document.getElementById("studentName").value;
-      if (!name) return alert("이름을 입력하세요");
+    const joinArea = document.getElementById("joinArea");
+    const waiting = document.getElementById("waiting");
+    const playArea = document.getElementById("playArea");
+    const ended = document.getElementById("ended");
+    const actionButton = document.getElementById("actionButton");
 
-      myDocRef = await addDoc(collection(db, "sessions", sessionId, "students"), {
-        name: name,
-        clicked: false
-      });
+    function resetActionButton() {
+      if (!actionButton) return;
+      delete actionButton.dataset.clicked;
+      actionButton.disabled = false;
+      actionButton.textContent = "I'm here!";
+    }
 
-      document.getElementById("joinArea").style.display = "none";
-      document.getElementById("waiting").style.display = "block";
+    function showWaitingState() {
+      document.body.classList.remove("student-live");
+      resetActionButton();
+      waiting.classList.remove("hidden");
+      playArea.classList.add("hidden");
+      ended.classList.add("hidden");
+    }
 
-      // 세션 상태 감시
-      onSnapshot(doc(db, "sessions", sessionId), (snap) => {
-        if (snap.exists() && snap.data().status === "started") {
-          document.getElementById("waiting").style.display = "none";
-          document.getElementById("playArea").style.display = "block";
+    function showLiveState() {
+      document.body.classList.add("student-live");
+      waiting.classList.add("hidden");
+      ended.classList.add("hidden");
+      playArea.classList.remove("hidden");
+    }
+
+    function showEndedState() {
+      document.body.classList.remove("student-live");
+      resetActionButton();
+      waiting.classList.add("hidden");
+      playArea.classList.add("hidden");
+      ended.classList.remove("hidden");
+      if (myDocUnsubscribe) {
+        myDocUnsubscribe();
+        myDocUnsubscribe = null;
+      }
+    }
+
+    function subscribeToSession() {
+      if (sessionUnsubscribe || !sessionId) return;
+
+      const sessionDocRef = doc(db, "sessions", sessionId);
+      sessionUnsubscribe = onSnapshot(sessionDocRef, (snap) => {
+        if (!snap.exists()) {
+          showEndedState();
+          return;
+        }
+
+        const status = snap.data().status;
+        if (status === "started") {
+          showLiveState();
+        } else if (status === "waiting") {
+          showWaitingState();
+        } else if (status === "ended") {
+          showEndedState();
         }
       });
     }
 
+    function subscribeToMyDoc(docRef) {
+      if (!docRef) return;
+      if (myDocUnsubscribe) myDocUnsubscribe();
+
+      myDocUnsubscribe = onSnapshot(docRef, (snap) => {
+        if (!snap.exists()) {
+          showEndedState();
+          return;
+        }
+
+        const data = snap.data();
+        if (data.clicked) {
+          if (actionButton) {
+            actionButton.dataset.clicked = "true";
+            actionButton.disabled = true;
+            actionButton.textContent = "Sent!";
+          }
+        } else {
+          resetActionButton();
+        }
+      });
+    }
+
+    async function joinSession() {
+      if (!sessionId) {
+        alert("Session link is missing. Please scan the QR code again.");
+        return;
+      }
+
+      const nameInput = document.getElementById("studentName");
+      const name = nameInput.value.trim();
+      if (!name) {
+        alert("Please enter your name before joining.");
+        nameInput.focus();
+        return;
+      }
+
+      if (!myDocRef) {
+        myDocRef = await addDoc(collection(db, "sessions", sessionId, "students"), {
+          name: name,
+          clicked: false,
+          joinedAt: Date.now()
+        });
+        subscribeToMyDoc(myDocRef);
+      }
+
+      joinArea.classList.add("hidden");
+      showWaitingState();
+      subscribeToSession();
+    }
+
     async function clickButton() {
       if (!myDocRef) return;
-      await updateDoc(myDocRef, { clicked: true });
-      alert("버튼을 눌렀습니다!");
+      if (actionButton) {
+        actionButton.disabled = true;
+        actionButton.textContent = "Sending...";
+      }
+
+      try {
+        await updateDoc(myDocRef, { clicked: true, clickedAt: Date.now() });
+      } catch (error) {
+        resetActionButton();
+        alert("Something went wrong. Please try again.");
+      }
     }
 
     window.joinSession = joinSession;
     window.clickButton = clickButton;
   </script>
 </head>
-<body>
-  <h2>학생 화면</h2>
-  <div id="joinArea">
-    <input id="studentName" placeholder="이름 입력">
-    <button onclick="joinSession()">입장</button>
-  </div>
+<body class="student-page">
+  <div class="panel student-card">
+    <header class="student-card__header">
+      <h1>Join Your Class</h1>
+      <p class="student-card__description">Enter your name so your teacher knows you're ready.</p>
+    </header>
 
-  <div id="waiting" style="display:none;">
-    <p>대기 중... 선생님이 시작할 때까지 기다려주세요.</p>
-  </div>
+    <div id="joinArea" class="student-section">
+      <label class="info-text" for="studentName">Your name</label>
+      <input id="studentName" type="text" placeholder="Enter your name" autocomplete="name">
+      <button onclick="joinSession()">Join Session</button>
+      <p class="info-text info-text--hint">Leave this page open after you join.</p>
+    </div>
 
-  <div id="playArea" style="display:none;">
-    <button onclick="clickButton()">버튼 누르기</button>
+    <div id="waiting" class="student-section hidden">
+      <span class="status-badge">Waiting</span>
+      <p class="info-text">Hang tight! We'll unlock the button when your teacher starts the session.</p>
+    </div>
+
+    <div id="playArea" class="student-section hidden">
+      <button id="actionButton" onclick="clickButton()">I'm here!</button>
+      <p class="sr-only" id="playHint">Tap the button to let your teacher know you're here.</p>
+    </div>
+
+    <div id="ended" class="student-section hidden">
+      <span class="status-badge status-badge--ended">Session ended</span>
+      <p class="info-text">This session is finished. You can close this page now.</p>
+    </div>
   </div>
 </body>
 </html>
