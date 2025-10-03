@@ -1,4 +1,4 @@
-﻿*,
+*,
 *::before,
 *::after {
   box-sizing: border-box;
@@ -348,22 +348,46 @@ body.student-page {
   color: #ffffff;
   font-size: clamp(2rem, 6vw, 3rem);
   font-weight: 600;
-  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.28);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
+  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.28);
   transition: transform 0.15s ease, background-color 0.2s ease;
 }
+
+
+.student-button:hover:not(:disabled) {
+  background-color: #274bcc;
+}
+
 
 .student-button:not(:disabled):active {
   transform: scale(0.97);
 }
 
+
 .student-button:disabled {
   background-color: #9baefc;
   color: #eef1ff;
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+  transform: none;
 }
+
+
+
+.student-button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+
+.student-button:disabled {
+  background-color: #9baefc;
+  color: #eef1ff;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+  transform: none;
+}
+
 
 .student-ended {
   position: absolute;
@@ -424,6 +448,8 @@ body.student-page {
   }
 }
 
+
+
 @media (max-width: 640px) {
   .main-layout {
     padding: 16px;
@@ -444,9 +470,72 @@ body.student-page {
   }
 
   .student-button {
-    border-radius: 28px;
-    font-size: clamp(1.8rem, 8vw, 2.4rem);
+    border-radius: 32px;
+    font-size: clamp(1.6rem, 8vw, 2.2rem);
   }
+
+  .student-ended {
+    bottom: -24px;
+    font-size: 14px;
+  }
+
+  #chartCanvas {
+    height: 320px;
+  }
+}
+
+
+
+
+  .students-list {
+    max-height: 280px;
+  }
+
+  body.student-page {
+    padding: 24px 12px;
+  }
+
+  .student-wrapper {
+    width: min(94vw, 300px);
+    height: min(94vw, 300px);
+  }
+
+  .student-button {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 36px;
+  background-color: #3366ff;
+  color: #ffffff;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.28);
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+
+
+.student-button:hover:not(:disabled) {
+  background-color: #274bcc;
+}
+
+
+.student-button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+
+.student-button:disabled {
+  background-color: #9baefc;
+  color: #eef1ff;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+  transform: none;
+}
+
+
 
   .student-ended {
     bottom: -24px;
@@ -469,8 +558,63 @@ body.student-page {
   }
 
   .student-button {
-    border-radius: 24px;
+    border-radius: 28px;
   }
+
+  .student-ended {
+    bottom: -18px;
+    font-size: 13px;
+  }
+
+  #chartCanvas {
+    height: 280px;
+  }
+}
+
+
+
+
+  .student-wrapper {
+    width: 90vw;
+    height: 90vw;
+  }
+
+  .student-button {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 36px;
+  background-color: #3366ff;
+  color: #ffffff;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.28);
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+
+
+.student-button:hover:not(:disabled) {
+  background-color: #274bcc;
+}
+
+
+.student-button:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+
+.student-button:disabled {
+  background-color: #9baefc;
+  color: #eef1ff;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+  transform: none;
+}
+
+
 
   .student-ended {
     bottom: -18px;
