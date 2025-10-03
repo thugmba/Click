@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>교사용 화면</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, setDoc, collection, onSnapshot, updateDoc } 
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // 🔑 Firebase 설정 (본인 프로젝트 설정으로 교체)
+    const firebaseConfig = {
+        apiKey: "AIzaSyD6EWEz8M1XtS9RBZwVamu2fpRrqHMdG0M",
+        authDomain: "click-6bcfe.firebaseapp.com",
+        projectId: "click-6bcfe",
+        storageBucket: "click-6bcfe.firebasestorage.app",
+        messagingSenderId: "1017935345719",
+        appId: "1:1017935345719:web:f08d5041bc4e4de34aa7b2",
+        measurementId: "G-R7MS8WD44W"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let currentSessionId = null;
+
+    async function newSession() {
+      // 무작위 세션 ID 생성
+      currentSessionId = Math.random().toString(36).substring(2, 8);
+
+      // Firestore에 세션 문서 생성
+      await setDoc(doc(db, "sessions", currentSessionId), {
+        status: "waiting",
+        createdAt: Date.now()
+      });
+
+      // 학생 접속용 URL
+      const studentUrl = 
+        `${window.location.origin}${window.location.pathname.replace("index.html","")}student.html?session=${currentSessionId}`;
+
+      // QR코드 생성
+      const qrCanvas = document.getElementById("qrcode");
+      qrCanvas.innerHTML = "";
+      QRCode.toCanvas(qrCanvas, studentUrl, { width: 200 });
+
+      document.getElementById("sessionInfo").innerText = "세션 ID: " + currentSessionId;
+
+      // 대기실 학생 표시
+      const studentsRef = collection(db, "sessions", currentSessionId, "students");
+      onSnapshot(studentsRef, (snapshot) => {
+        const list = document.getElementById("students");
+        list.innerHTML = "";
+        snapshot.forEach(doc => {
+          let li = document.createElement("li");
+          li.textContent = doc.data().name + (doc.data().clicked ? " ✅" : "");
+          list.appendChild(li);
+        });
+      });
+    }
+
+    async function startSession() {
+      if (!currentSessionId) return;
+      await updateDoc(doc(db, "sessions", currentSessionId), { status: "started" });
+      document.getElementById("status").innerText = "세션 시작!";
+    }
+
+    window.newSession = newSession;
+    window.startSession = startSession;
+  </script>
+</head>
+<body>
+  <h2>교사용 화면</h2>
+  <button onclick="newSession()">새 세션 시작</button>
+  <div id="sessionInfo"></div>
+  <canvas id="qrcode"></canvas>
+  <h3>대기실</h3>
+  <ul id="students"></ul>
+  <button onclick="startSession()">시작</button>
+  <p id="status"></p>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>학생 화면</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc } 
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // 🔑 Firebase 설정 (교사용과 동일하게 교체)
+    const firebaseConfig = {
+        apiKey: "AIzaSyD6EWEz8M1XtS9RBZwVamu2fpRrqHMdG0M",
+        authDomain: "click-6bcfe.firebaseapp.com",
+        projectId: "click-6bcfe",
+        storageBucket: "click-6bcfe.firebasestorage.app",
+        messagingSenderId: "1017935345719",
+        appId: "1:1017935345719:web:f08d5041bc4e4de34aa7b2",
+        measurementId: "G-R7MS8WD44W"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get("session");
+
+    let myDocRef = null;
+
+    async function joinSession() {
+      const name = document.getElementById("studentName").value;
+      if (!name) return alert("이름을 입력하세요");
+
+      myDocRef = await addDoc(collection(db, "sessions", sessionId, "students"), {
+        name: name,
+        clicked: false
+      });
+
+      document.getElementById("joinArea").style.display = "none";
+      document.getElementById("waiting").style.display = "block";
+
+      // 세션 상태 감시
+      onSnapshot(doc(db, "sessions", sessionId), (snap) => {
+        if (snap.exists() && snap.data().status === "started") {
+          document.getElementById("waiting").style.display = "none";
+          document.getElementById("playArea").style.display = "block";
+        }
+      });
+    }
+
+    async function clickButton() {
+      if (!myDocRef) return;
+      await updateDoc(myDocRef, { clicked: true });
+      alert("버튼을 눌렀습니다!");
+    }
+
+    window.joinSession = joinSession;
+    window.clickButton = clickButton;
+  </script>
+</head>
+<body>
+  <h2>학생 화면</h2>
+  <div id="joinArea">
+    <input id="studentName" placeholder="이름 입력">
+    <button onclick="joinSession()">입장</button>
+  </div>
+
+  <div id="waiting" style="display:none;">
+    <p>대기 중... 선생님이 시작할 때까지 기다려주세요.</p>
+  </div>
+
+  <div id="playArea" style="display:none;">
+    <button onclick="clickButton()">버튼 누르기</button>
+  </div>
+</body>
+</html>
