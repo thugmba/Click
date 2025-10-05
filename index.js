@@ -30,11 +30,35 @@ let chartPanel;
 let startButton;
 let qrCanvas;
 let studentsList;
+let studentCountLabel;
 let chartCanvas;
+let randomNamesToggle;
+let modeControl;
+let modeButtons = [];
+let clickedCountEl;
+let clickedPercentEl;
+let clickedDetailEl;
+let clickedPercentWrap;
+let standardStatsEl;
+let typeStatsEl;
+let typeResponseCountEl;
+let typeWordCloudEl;
+let choiceStatsEl;
+let choiceYesEl;
+let choiceNoEl;
+let choiceYesPercentEl;
+let choiceNoPercentEl;
+
+let currentMode = "standard";
+let quizMode = false;
+let quizWinner = null;
 
 let currentSessionId = null;
 let studentsUnsubscribe = null;
 let latestCounts = { total: 0, clicked: 0 };
+let latestTypeResponses = [];
+let latestChoiceCounts = { yes: 0, no: 0 };
+let latestStudentData = [];
 let resetHistory = [];
 
 function showSetupView() {
@@ -61,13 +85,32 @@ function showChartView() {
 }
 
 function resetUi() {
-  document.getElementById("status").innerText = "Create a session to begin.";
-  document.getElementById("clickedCount").innerText = "0";
-  document.getElementById("clickedPercent").innerText = "0%";
-  document.getElementById("clickedDetail").innerText = "0 of 0 students";
+  const instructionsEl = document.getElementById("statusInstructions");
+  if (instructionsEl) instructionsEl.classList.remove("hidden");
+  const statusMessageEl = document.getElementById("statusMessage");
+  if (statusMessageEl) {
+    statusMessageEl.classList.add("hidden");
+    statusMessageEl.innerText = "";
+  }
+
+  currentMode = "standard";
+  quizMode = false;
+  quizWinner = null;
+  latestCounts = { total: 0, clicked: 0 };
+  latestTypeResponses = [];
+  latestChoiceCounts = { yes: 0, no: 0 };
+
+  activateModeButton("standard");
+  if (studentCountLabel) studentCountLabel.innerText = "0";
+  renderLiveStats();
 
   if (startButton) startButton.disabled = true;
   if (studentsList) studentsList.innerHTML = "";
+  const qrUrlEl = document.getElementById("qrUrl");
+  if (qrUrlEl) {
+    qrUrlEl.textContent = "";
+    qrUrlEl.href = "";
+  }
   if (qrCanvas) {
     const context = qrCanvas.getContext("2d");
     if (context) context.clearRect(0, 0, qrCanvas.width || 400, qrCanvas.height || 400);
@@ -79,12 +122,244 @@ function resetUi() {
 
 function updateStudentCounts(total, clicked) {
   latestCounts = { total, clicked };
+  if (studentCountLabel) studentCountLabel.innerText = total;
+  renderLiveStats();
+}
 
-  document.getElementById("clickedCount").innerText = clicked;
+function ensureStatElements() {
+  if (!standardStatsEl) standardStatsEl = document.getElementById("standardStats");
+  if (!typeStatsEl) typeStatsEl = document.getElementById("typeStats");
+  if (!choiceStatsEl) choiceStatsEl = document.getElementById("choiceStats");
+  if (!clickedCountEl) clickedCountEl = document.getElementById("clickedCount");
+  if (!clickedPercentEl) clickedPercentEl = document.getElementById("clickedPercent");
+  if (!clickedPercentWrap) clickedPercentWrap = document.getElementById("clickedPercentWrap");
+  if (!clickedDetailEl) clickedDetailEl = document.getElementById("clickedDetail");
+  if (!typeResponseCountEl) typeResponseCountEl = document.getElementById("typeResponseCount");
+  if (!typeWordCloudEl) typeWordCloudEl = document.getElementById("typeWordCloud");
+  if (!choiceYesEl) choiceYesEl = document.getElementById("choiceYesCount");
+  if (!choiceNoEl) choiceNoEl = document.getElementById("choiceNoCount");
+  if (!choiceYesPercentEl) choiceYesPercentEl = document.getElementById("choiceYesPercent");
+  if (!choiceNoPercentEl) choiceNoPercentEl = document.getElementById("choiceNoPercent");
+}
 
-  const percent = total > 0 ? Math.round((clicked / total) * 100) : 0;
-  document.getElementById("clickedPercent").innerText = percent + "%";
-  document.getElementById("clickedDetail").innerText = clicked + " of " + total + " students";
+function renderLiveStats() {
+  ensureStatElements();
+
+  const standardVisible = currentMode === "standard" || currentMode === "quick";
+
+  if (standardStatsEl) standardStatsEl.classList.toggle("hidden", !standardVisible);
+  if (typeStatsEl) typeStatsEl.classList.toggle("hidden", currentMode !== "type");
+  if (choiceStatsEl) choiceStatsEl.classList.toggle("hidden", currentMode !== "choice");
+
+  if (standardVisible && clickedCountEl && clickedDetailEl) {
+    if (quizMode) {
+      if (clickedPercentWrap) clickedPercentWrap.classList.add("hidden");
+      if (quizWinner) {
+        clickedCountEl.innerText = quizWinner;
+        clickedDetailEl.innerText = "First response recorded";
+      } else {
+        clickedCountEl.innerText = "—";
+        clickedDetailEl.innerText = "Waiting for first response...";
+      }
+      if (clickedPercentEl) clickedPercentEl.innerText = "";
+    } else {
+      if (clickedPercentWrap) clickedPercentWrap.classList.remove("hidden");
+      clickedCountEl.innerText = String(latestCounts.clicked);
+      const percent = latestCounts.total > 0 ? Math.round((latestCounts.clicked / latestCounts.total) * 100) : 0;
+      if (clickedPercentEl) clickedPercentEl.innerText = percent + "%";
+      clickedDetailEl.innerText = `${latestCounts.clicked} of ${latestCounts.total} students`;
+    }
+  }
+
+  if (currentMode === "type") {
+    const responseCount = latestTypeResponses.length;
+    if (typeResponseCountEl) {
+      typeResponseCountEl.innerText = `${responseCount} response${responseCount === 1 ? "" : "s"}`;
+    }
+    renderWordCloud(latestTypeResponses);
+  }
+
+  if (currentMode === "choice") {
+    if (choiceYesEl) choiceYesEl.innerText = latestChoiceCounts.yes;
+    if (choiceNoEl) choiceNoEl.innerText = latestChoiceCounts.no;
+
+    const total = latestCounts.total;
+    const yesPercent = total > 0 ? Math.round((latestChoiceCounts.yes / total) * 100) : 0;
+    const noPercent = total > 0 ? Math.round((latestChoiceCounts.no / total) * 100) : 0;
+
+    if (choiceYesPercentEl) choiceYesPercentEl.innerText = `${yesPercent}%`;
+    if (choiceNoPercentEl) choiceNoPercentEl.innerText = `${noPercent}%`;
+  }
+}
+
+function renderWordCloud(responses) {
+  ensureStatElements();
+  if (!typeWordCloudEl) return;
+
+  typeWordCloudEl.innerHTML = "";
+  if (!responses || !responses.length) {
+    const emptyState = document.createElement("p");
+    emptyState.textContent = "Waiting for responses...";
+    emptyState.style.margin = "0";
+    emptyState.style.color = "rgba(31, 31, 31, 0.6)";
+    typeWordCloudEl.appendChild(emptyState);
+    return;
+  }
+
+  const counts = new Map();
+  responses.forEach((entry) => {
+    if (!entry) return;
+    entry
+      .split(/\s+/)
+      .map((word) => word.replace(/[^\p{L}\p{N}'-]/gu, ""))
+      .filter((word) => word && word.length > 1)
+      .forEach((word) => {
+        const normalized = word.toLowerCase();
+        counts.set(normalized, (counts.get(normalized) || 0) + 1);
+      });
+  });
+
+  const entries = Array.from(counts.entries());
+  entries.sort((a, b) => b[1] - a[1]);
+  const maxCount = entries.length ? entries[0][1] : 1;
+
+  if (!entries.length) {
+    const emptyState = document.createElement("p");
+    emptyState.textContent = "Waiting for responses...";
+    emptyState.style.margin = "0";
+    emptyState.style.color = "rgba(31, 31, 31, 0.6)";
+    typeWordCloudEl.appendChild(emptyState);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  entries.forEach(([word, count]) => {
+    const span = document.createElement("span");
+    span.className = "word-cloud__word";
+    const scale = count / maxCount;
+    const fontSize = 18 + Math.round(scale * 26);
+    span.style.fontSize = `${fontSize}px`;
+    span.style.opacity = String(0.6 + scale * 0.4);
+    span.textContent = word.charAt(0).toUpperCase() + word.slice(1);
+    fragment.appendChild(span);
+  });
+
+  typeWordCloudEl.appendChild(fragment);
+}
+
+function renderStudentsList(students) {
+  if (!studentsList) return;
+  studentsList.innerHTML = "";
+
+  students.forEach(({ data }) => {
+    const name = data.name || "Unnamed";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.disabled = true;
+    let className = "student-item";
+    let label = name;
+
+    if (currentMode === "standard") {
+      if (data.clicked) className += " student-item--clicked";
+    } else if (currentMode === "quick") {
+      if (quizWinner && quizWinner === name) {
+        className += " student-item--clicked";
+      } else if (data.clicked) {
+        className += " student-item--clicked";
+      }
+    } else if (currentMode === "type") {
+      const response = data.textResponse && data.textResponse.trim();
+      if (response) {
+        label = `${name}: "${response}"`;
+        className += " student-item--clicked";
+      }
+    } else if (currentMode === "choice") {
+      if (data.choiceResponse === "yes") {
+        label = `${name}: Yes`;
+        className += " student-item--yes";
+      } else if (data.choiceResponse === "no") {
+        label = `${name}: No`;
+        className += " student-item--no";
+      }
+    }
+
+    button.className = className;
+    button.textContent = label;
+    studentsList.appendChild(button);
+  });
+}
+
+function activateModeButton(mode) {
+  if (!modeButtons.length && modeControl) {
+    modeButtons = Array.from(modeControl.querySelectorAll(".segment-option"));
+  }
+  if (!modeButtons.length) return;
+  modeButtons.forEach((button) => {
+    const isActive = button.dataset.mode === mode;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function setMode(mode, { fromRemote = false } = {}) {
+  if (!mode) return;
+  const normalized = ["standard", "quick", "type", "choice"].includes(mode) ? mode : "standard";
+  const changed = currentMode !== normalized;
+  currentMode = normalized;
+  activateModeButton(normalized);
+
+  const wasQuiz = quizMode;
+  quizMode = currentMode === "quick";
+  if (!quizMode) {
+    quizWinner = null;
+  } else if (!wasQuiz) {
+    quizWinner = null;
+  }
+
+  if (currentMode === "standard" || currentMode === "quick") {
+    const clicked = latestStudentData.reduce((sum, entry) => sum + (entry.data.clicked ? 1 : 0), 0);
+    latestCounts = { total: latestCounts.total, clicked };
+  }
+
+  if (changed) {
+    ensureStatElements();
+    if (standardStatsEl) {
+      const statsHeight = standardStatsEl.offsetHeight;
+      if (statsHeight > 0) {
+        if (currentMode === "type" && typeStatsEl) {
+          typeStatsEl.style.height = `${statsHeight}px`;
+        }
+        if (currentMode === "choice" && choiceStatsEl) {
+          choiceStatsEl.style.height = `${statsHeight}px`;
+        }
+      }
+    }
+  }
+
+  renderLiveStats();
+  renderStudentsList(latestStudentData);
+
+  if (!fromRemote && changed && currentSessionId) {
+    updateDoc(doc(db, "sessions", currentSessionId), { mode: normalized }).catch((error) => {
+      console.warn("Unable to update mode", error);
+    });
+  }
+}
+
+function handleModeButtonClick(event) {
+  const button = event.currentTarget;
+  const mode = button.dataset.mode;
+  if (!mode) return;
+  setMode(mode);
+}
+
+function handleRandomNamesToggle(event) {
+  if (!currentSessionId) return;
+  updateDoc(doc(db, "sessions", currentSessionId), {
+    requireStudentName: !event.target.checked
+  }).catch((error) => {
+    console.warn("Unable to update name mode", error);
+  });
 }
 
 function addResetSnapshot() {
@@ -106,23 +381,50 @@ async function newSession() {
 
   currentSessionId = Math.random().toString(36).substring(2, 8);
   if (startButton) startButton.disabled = false;
+  setMode("standard", { fromRemote: true });
 
   await setDoc(doc(db, "sessions", currentSessionId), {
     status: "waiting",
     createdAt: Date.now(),
-    round: 0
+    round: 0,
+    mode: "standard",
+    requireStudentName: randomNamesToggle ? !randomNamesToggle.checked : false
   });
 
   const basePath = window.location.pathname.replace(/index\.html?$/i, "");
   const studentUrl = `${window.location.origin}${basePath}student.html?session=${currentSessionId}`;
 
-  if (qrCanvas) {
-    qrCanvas.width = 0;
-    qrCanvas.height = 0;
-    QRCode.toCanvas(qrCanvas, studentUrl, { width: 400 });
+  const qrUrlEl = document.getElementById("qrUrl");
+  if (qrUrlEl) {
+    qrUrlEl.textContent = studentUrl;
+    qrUrlEl.href = studentUrl;
   }
 
-  document.getElementById("status").innerText = "Share the QR code so students can join.";
+  if (qrCanvas) {
+    const bounds = qrCanvas.getBoundingClientRect();
+    const maxQrSize = 400;
+    const cssSize = Math.min(maxQrSize, Math.round(bounds.width) || maxQrSize);
+    const scale = window.devicePixelRatio || 1;
+    const renderSize = cssSize * scale;
+
+    QRCode.toCanvas(qrCanvas, studentUrl, { width: renderSize, margin: 0 }, (error) => {
+      if (error) {
+        console.error("Unable to render QR code", error);
+        return;
+      }
+      qrCanvas.style.width = "100%";
+      qrCanvas.style.height = "auto";
+      qrCanvas.style.maxWidth = `${maxQrSize}px`;
+    });
+  }
+
+  const instructionsEl = document.getElementById("statusInstructions");
+  if (instructionsEl) instructionsEl.classList.add("hidden");
+  const statusMessageEl = document.getElementById("statusMessage");
+  if (statusMessageEl) {
+    statusMessageEl.classList.remove("hidden");
+    statusMessageEl.innerText = "Share the QR code so students can join.";
+  }
 
   if (studentsList) studentsList.innerHTML = "";
   updateStudentCounts(0, 0);
@@ -131,21 +433,65 @@ async function newSession() {
   studentsUnsubscribe = onSnapshot(studentsRef, (snapshot) => {
     if (studentsList) studentsList.innerHTML = "";
     let clicked = 0;
+    let firstClickedName = quizWinner;
+    const typeResponses = [];
+    const choiceCounts = { yes: 0, no: 0 };
 
-    snapshot.forEach(studentDoc => {
+    const studentsData = [];
+
+    snapshot.forEach((studentDoc) => {
       const data = studentDoc.data();
-      if (data.clicked) clicked += 1;
+      const name = data.name || "Unnamed";
 
-      if (studentsList) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = data.clicked ? "student-item student-item--clicked" : "student-item";
-        btn.textContent = data.name || "Unnamed";
-        studentsList.appendChild(btn);
+      if (data.clicked) {
+        clicked += 1;
+        if (quizMode && !firstClickedName) {
+          firstClickedName = name;
+        }
       }
+
+      if (typeof data.textResponse === "string" && data.textResponse.trim()) {
+        typeResponses.push(data.textResponse.trim());
+      }
+
+      if (data.choiceResponse === "yes") {
+        choiceCounts.yes += 1;
+      } else if (data.choiceResponse === "no") {
+        choiceCounts.no += 1;
+      }
+
+      studentsData.push({ id: studentDoc.id, data });
     });
 
-    updateStudentCounts(snapshot.size, clicked);
+    latestStudentData = studentsData;
+    latestTypeResponses = typeResponses;
+    latestChoiceCounts = choiceCounts;
+
+    if (quizMode && !quizWinner && firstClickedName) {
+      quizWinner = firstClickedName;
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(`${firstClickedName}!`);
+        const voices = window.speechSynthesis.getVoices();
+        const maleVoice = voices.find(voice => voice.name.includes('Male') || voice.name.includes('Daniel') || voice.name.includes('David'));
+        if (maleVoice) utterance.voice = maleVoice;
+        utterance.rate = 1.1;
+        utterance.pitch = 1.4;
+        utterance.volume = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }
+    } else if (!quizMode) {
+      quizWinner = null;
+    }
+
+    renderStudentsList(latestStudentData);
+
+    const respondedCount = currentMode === "type"
+      ? typeResponses.length
+      : currentMode === "choice"
+        ? choiceCounts.yes + choiceCounts.no
+        : clicked;
+
+    updateStudentCounts(snapshot.size, respondedCount);
   });
 }
 
@@ -172,7 +518,11 @@ async function resetSession() {
   if (!snapshot.empty) {
     const batch = writeBatch(db);
     snapshot.forEach((studentDoc) => {
-      batch.update(studentDoc.ref, { clicked: false });
+      batch.update(studentDoc.ref, {
+        clicked: false,
+        textResponse: null,
+        choiceResponse: null
+      });
     });
     await batch.commit();
   }
@@ -182,7 +532,11 @@ async function resetSession() {
     round: increment(1)
   });
 
+  latestTypeResponses = [];
+  latestChoiceCounts = { yes: 0, no: 0 };
+  quizWinner = null;
   updateStudentCounts(snapshot.size, 0);
+  renderLiveStats();
   showLiveView();
 }
 
@@ -288,10 +642,12 @@ function drawChart() {
   context.font = (12 * dpr) + "px Arial";
   context.textAlign = "center";
   context.textBaseline = "top";
-  context.fillText("Reset Number", padding + chartWidth / 2, height - padding / 2);
+  const axisLabelOffset = 28 * dpr;
+  context.fillText("Reset Number", padding + chartWidth / 2, height - padding + axisLabelOffset);
   context.save();
   context.translate(padding / 2, padding + chartHeight / 2);
   context.rotate(-Math.PI / 2);
+  context.textBaseline = "middle";
   context.fillText("Students clicked", 0, 0);
   context.restore();
 
@@ -312,7 +668,20 @@ function initialiseDom() {
   startButton = document.getElementById("startButton");
   qrCanvas = document.getElementById("qrcode");
   studentsList = document.getElementById("students");
+  studentCountLabel = document.getElementById("studentCount");
   chartCanvas = document.getElementById("chartCanvas");
+  randomNamesToggle = document.getElementById("randomNamesToggle");
+  modeControl = document.getElementById("modeControl");
+  ensureStatElements();
+
+  if (randomNamesToggle) randomNamesToggle.addEventListener("change", handleRandomNamesToggle);
+  if (modeControl) {
+    modeButtons = Array.from(modeControl.querySelectorAll(".segment-option"));
+    modeButtons.forEach((button) => button.addEventListener("click", handleModeButtonClick));
+  }
+
+  activateModeButton(currentMode);
+  renderLiveStats();
 
   resetUi();
   showSetupView();

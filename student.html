@@ -9,9 +9,25 @@
 </head>
 <body class="student-page">
   <div class="student-wrapper">
+    <div id="studentName" class="student-name">Connecting...</div>
+    <form id="nameForm" class="student-name-form hidden" autocomplete="off">
+      <label for="nameInput" class="student-name-form__label">Enter your name</label>
+      <input id="nameInput" class="student-name-form__input" type="text" name="studentName" autocomplete="name" placeholder="Your name" maxlength="40" required>
+      <p id="nameError" class="student-name-form__error hidden">Please enter your name.</p>
+      <button type="submit" class="student-name-form__submit">Join</button>
+    </form>
+    <form id="responseForm" class="student-response-form hidden" autocomplete="off">
+      <label for="responseInput" class="student-response-form__label">Your response</label>
+      <textarea id="responseInput" class="student-response-form__input" name="response" rows="3" maxlength="140" placeholder="Type your answer" required></textarea>
+      <p id="responseError" class="student-response-form__error hidden">Please enter a response.</p>
+      <button type="submit" class="student-response-form__submit">Send</button>
+    </form>
+    <div id="choiceButtons" class="student-choice hidden">
+      <button type="button" id="choiceYesButton" class="student-choice__option student-choice__option--yes" data-choice="yes">Yes</button>
+      <button type="button" id="choiceNoButton" class="student-choice__option student-choice__option--no" data-choice="no">No</button>
+    </div>
     <button id="actionButton" class="student-button" onclick="clickButton()" disabled>Connecting...</button>
     <div id="ended" class="student-ended hidden">Session finished. Thanks!</div>
   </div>
 </body>
 </html>
-

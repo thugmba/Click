@@ -12,18 +12,33 @@
   <div class="main-layout" id="mainLayout">
     <section class="panel session-panel">
       <div class="session-panel__header">
-        <h2>Teacher Control Panel</h2>
-        <button class="session-panel__create" onclick="newSession()">Create Session</button>
+        <h3>Teacher Control Panel</h3>
+        <div class="session-panel__actions">
+          <div class="quiz-toggle session-panel__random">
+            <span id="randomNamesToggleText" class="quiz-toggle__text">Random names</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="randomNamesToggle" aria-labelledby="randomNamesToggleText">
+              <span class="toggle-switch__slider"></span>
+            </label>
+          </div>
+          <button class="session-panel__create" onclick="newSession()">Create Session</button>
+        </div>
       </div>
-      <p id="status" class="status-message">Create a session to begin.</p>
+      <ol id="statusInstructions" class="status-message status-list">
+        <li>Create session</li>
+        <li>Let students scan QR code</li>
+        <li>Start session when students joined</li>
+      </ol>
+      <p id="statusMessage" class="status-message hidden"></p>
       <div class="session-panel__qr">
+        <a id="qrUrl" class="qr-url" href="" target="_blank"></a>
         <canvas id="qrcode"></canvas>
       </div>
     </section>
 
     <section class="panel students-panel">
       <div class="students-panel__header">
-        <h3>Joined Students</h3>
+        <h3>Joined Students <span class="students-panel__count">(<span id="studentCount">0</span>)</span></h3>
         <button id="startButton" onclick="startSession()" disabled>Start Session</button>
       </div>
       <div id="students" class="students-list"></div>
@@ -32,13 +47,53 @@
 
   <section class="panel live-panel hidden" id="livePanel">
     <div class="live-panel__content">
-      <p class="live-panel__label">Students clicked</p>
-      <p class="live-panel__count" id="clickedCount">0</p>
-      <p class="live-panel__percent" id="clickedPercent">0%</p>
-      <p class="live-panel__detail" id="clickedDetail">0 of 0 students</p>
-      <div class="live-panel__actions">
-        <button class="live-panel__reset" onclick="resetSession()">Reset Session</button>
-        <button class="live-panel__finish" onclick="finishSession()">Finish</button>
+      <div class="live-panel__stats" id="standardStats">
+        <div class="live-panel__count" id="clickedCount">0</div>
+        <div class="live-panel__detail">
+          <span id="clickedDetail">0 of 0 students</span>
+          <span id="clickedPercentWrap">(<span id="clickedPercent">0%</span>)</span>
+        </div>
+      </div>
+
+      <div class="live-panel__type hidden" id="typeStats">
+        <div class="live-panel__type-summary">
+          <span id="typeResponseCount">0 responses</span>
+        </div>
+        <div class="word-cloud" id="typeWordCloud"></div>
+      </div>
+
+      <div class="live-panel__choice hidden" id="choiceStats">
+        <div class="choice-meter">
+          <div class="choice-meter__item choice-meter__item--yes">
+            <span class="choice-meter__value" id="choiceYesCount">0</span>
+            <div class="choice-meter__detail">
+              <span class="choice-meter__label">Yes</span>
+              <span class="choice-meter__percent" id="choiceYesPercent">0%</span>
+            </div>
+          </div>
+          <div class="choice-meter__item choice-meter__item--no">
+            <span class="choice-meter__value" id="choiceNoCount">0</span>
+            <div class="choice-meter__detail">
+              <span class="choice-meter__label">No</span>
+              <span class="choice-meter__percent" id="choiceNoPercent">0%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="live-panel__controls">
+        <div class="live-panel__modes">
+          <div class="segment-control" role="group" aria-label="Modes" id="modeControl">
+            <button type="button" class="segment-option active" data-mode="standard">Standard</button>
+            <button type="button" class="segment-option" data-mode="quick">Quick</button>
+            <button type="button" class="segment-option" data-mode="type">Type</button>
+            <button type="button" class="segment-option" data-mode="choice">Choice</button>
+          </div>
+        </div>
+        <div class="live-panel__actions">
+          <button class="live-panel__reset" onclick="resetSession()">Reset</button>
+          <button class="live-panel__finish" onclick="finishSession()">Finish</button>
+        </div>
       </div>
     </div>
   </section>
@@ -50,8 +105,6 @@
   </section>
 </body>
 </html>
-
-
 
 
 
