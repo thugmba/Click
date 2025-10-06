@@ -82,6 +82,7 @@ function persistAssignedName(name) {
 let requireStudentName = false;
 let currentMode = "standard";
 let myDocData = null;
+let roundActive = false;
 
 function updateNameDisplay(nameOverride) {
   if (!nameDisplay) return;
@@ -277,8 +278,9 @@ function refreshUiForCurrentState() {
 
   if (currentMode === "type") {
     const hasResponse = Boolean(myDocData && typeof myDocData.textResponse === "string" && myDocData.textResponse.trim());
+    const canInteract = sessionStatus === "started" && roundActive && !hasResponse;
     if (responseSubmitButton) {
-      responseSubmitButton.disabled = sessionStatus !== "started" || hasResponse;
+      responseSubmitButton.disabled = !canInteract;
       responseSubmitButton.textContent = hasResponse ? "Sent!" : "Send";
     }
     if (responseInput) {
@@ -286,10 +288,10 @@ function refreshUiForCurrentState() {
       if (document.activeElement !== responseInput) {
         responseInput.value = storedValue;
       }
-      responseInput.disabled = sessionStatus !== "started" || hasResponse;
-      responseInput.placeholder = hasResponse ? "Response sent" : (sessionStatus === "started" ? "Type your answer" : "Waiting to start");
+      responseInput.disabled = !canInteract;
+      responseInput.placeholder = hasResponse ? "Response sent" : (roundActive ? "Type your answer" : "Waiting for round to start");
     }
-    if (responseError && sessionStatus !== "started") {
+    if (responseError && !roundActive) {
       responseError.classList.add("hidden");
     }
     return;
@@ -297,7 +299,7 @@ function refreshUiForCurrentState() {
 
   if (currentMode === "choice") {
     const hasChoice = Boolean(myDocData && myDocData.choiceResponse);
-    const enabled = sessionStatus === "started" && !hasChoice;
+    const enabled = sessionStatus === "started" && roundActive && !hasChoice;
     [choiceYesButton, choiceNoButton].forEach((button) => {
       if (!button) return;
       button.disabled = !enabled;
@@ -342,13 +344,21 @@ function updateStandardButtonState() {
     return;
   }
 
-  if (myDocData && myDocData.clicked) {
+  // Check if round is active and if student has clicked
+  const hasClicked = myDocData && myDocData.clicked;
+  const canClick = sessionStatus === "started" && roundActive && !hasClicked;
+
+  if (hasClicked) {
     actionButton.dataset.clicked = "true";
     actionButton.disabled = true;
     actionButton.textContent = "Sent!";
+  } else if (!roundActive) {
+    delete actionButton.dataset.clicked;
+    actionButton.disabled = true;
+    actionButton.textContent = "Waiting for round to start";
   } else {
     delete actionButton.dataset.clicked;
-    actionButton.disabled = false;
+    actionButton.disabled = !canClick;
     actionButton.textContent = currentMode === "quick" ? "Buzz" : "OK";
   }
 }
@@ -493,8 +503,29 @@ function subscribeToSession() {
     }
 
     const nextMode = sessionData.mode || "standard";
-    if (nextMode !== currentMode) {
+    const modeChanged = nextMode !== currentMode;
+    if (modeChanged) {
       currentMode = nextMode;
+    }
+
+    // Track round state
+    const nextRoundActive = sessionData.roundActive === true;
+    const roundStateChanged = nextRoundActive !== roundActive;
+    roundActive = nextRoundActive;
+
+    // When new round starts (roundActive changes to true), reset student UI
+    if (roundStateChanged && roundActive && myDocData) {
+      // New round started, clear student's response data locally to reset UI
+      myDocData = {
+        ...myDocData,
+        clicked: false,
+        textResponse: null,
+        choiceResponse: null
+      };
+    }
+
+    // Refresh UI if mode or round state changed
+    if (modeChanged || roundStateChanged) {
       refreshUiForCurrentState();
     }
 

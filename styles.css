@@ -464,7 +464,7 @@ button:disabled {
 
 
 
-.live-panel__reset,
+.live-panel__round,
 .live-panel__finish {
   padding: 14px 28px;
 }
@@ -567,12 +567,12 @@ body.live-mode .segment-option.active {
   color: #163974;
 }
 
-body.live-mode .live-panel__reset {
+body.live-mode .live-panel__round {
   background-color: rgba(255, 255, 255, 0.9);
   color: #101522;
 }
 
-body.live-mode .live-panel__reset:hover {
+body.live-mode .live-panel__round:hover {
   background-color: rgba(255, 255, 255, 0.75);
 }
 
@@ -590,23 +590,28 @@ body.chart-mode {
 }
 
 .chart-panel {
-  max-width: 960px;
-  width: min(90%, 960px);
-  margin: 48px auto;
-  padding: 32px 40px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  padding: 32px;
   display: flex;
   flex-direction: column;
   gap: 24px;
   align-items: stretch;
+  background-color: #f5f5f5;
 }
 
 .chart-panel h2 {
-  margin-bottom: 8px;
+  margin: 0;
+  text-align: center;
 }
 
 #chartCanvas {
+  flex: 1;
   width: 100%;
-  height: 420px;
+  min-height: 0;
   border-radius: 12px;
   background-color: #ffffff;
 }
@@ -1005,7 +1010,7 @@ body.student-page {
 }
 
 .session-panel__create,
-.live-panel__reset,
+.live-panel__round,
 .chart-panel__ok {
   background: linear-gradient(180deg, #4c83ff 0%, #1f5bff 100%);
   color: #ffffff;
@@ -1013,7 +1018,7 @@ body.student-page {
 }
 
 .session-panel__create:hover,
-.live-panel__reset:hover,
+.live-panel__round:hover,
 .chart-panel__ok:hover {
   background: linear-gradient(180deg, #5c8eff 0%, #2b64ff 100%);
 }
@@ -1029,7 +1034,7 @@ body.student-page {
 }
 
 button:disabled.live-panel__finish,
-button:disabled.live-panel__reset,
+button:disabled.live-panel__round,
 button:disabled.session-panel__create,
 button:disabled.chart-panel__ok {
   background: linear-gradient(180deg, #e5e7eb 0%, #d1d5db 100%);

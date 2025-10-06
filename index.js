@@ -28,6 +28,7 @@ let mainLayout;
 let livePanel;
 let chartPanel;
 let startButton;
+let roundButton;
 let qrCanvas;
 let studentsList;
 let studentCountLabel;
@@ -59,7 +60,13 @@ let latestCounts = { total: 0, clicked: 0 };
 let latestTypeResponses = [];
 let latestChoiceCounts = { yes: 0, no: 0 };
 let latestStudentData = [];
-let resetHistory = [];
+let roundHistory = [];
+let participationOpportunities = 0;
+let studentParticipation = new Map();
+let currentOpportunityParticipants = new Set();
+let sessionStatus = "connecting";
+let isRoundActive = false;
+let hasChosenMode = false;
 
 function showSetupView() {
   document.body.classList.remove("live-mode", "chart-mode");
@@ -99,6 +106,12 @@ function resetUi() {
   latestCounts = { total: 0, clicked: 0 };
   latestTypeResponses = [];
   latestChoiceCounts = { yes: 0, no: 0 };
+  participationOpportunities = 0;
+  studentParticipation = new Map();
+  currentOpportunityParticipants = new Set();
+  sessionStatus = "connecting";
+  isRoundActive = false;
+  hasChosenMode = false;
 
   activateModeButton("standard");
   if (studentCountLabel) studentCountLabel.innerText = "0";
@@ -117,7 +130,7 @@ function resetUi() {
     qrCanvas.width = 0;
     qrCanvas.height = 0;
   }
-  resetHistory = [];
+  roundHistory = [];
 }
 
 function updateStudentCounts(total, clicked) {
@@ -301,10 +314,21 @@ function activateModeButton(mode) {
   });
 }
 
+function setModeButtonsEnabled(enabled) {
+  if (!modeButtons.length && modeControl) {
+    modeButtons = Array.from(modeControl.querySelectorAll(".segment-option"));
+  }
+  if (!modeButtons.length) return;
+  modeButtons.forEach((button) => {
+    button.disabled = !enabled;
+  });
+}
+
 function setMode(mode, { fromRemote = false } = {}) {
   if (!mode) return;
   const normalized = ["standard", "quick", "type", "choice"].includes(mode) ? mode : "standard";
   const changed = currentMode !== normalized;
+  const previousMode = currentMode;
   currentMode = normalized;
   activateModeButton(normalized);
 
@@ -334,16 +358,22 @@ function setMode(mode, { fromRemote = false } = {}) {
         }
       }
     }
+
+    // Mark that teacher has chosen a mode
+    if (sessionStatus === "started" && !fromRemote) {
+      hasChosenMode = true;
+      // Enable Next Round button if round is not active and mode was chosen
+      if (roundButton && !isRoundActive) {
+        roundButton.disabled = false;
+      }
+    }
   }
 
   renderLiveStats();
   renderStudentsList(latestStudentData);
 
-  if (!fromRemote && changed && currentSessionId) {
-    updateDoc(doc(db, "sessions", currentSessionId), { mode: normalized }).catch((error) => {
-      console.warn("Unable to update mode", error);
-    });
-  }
+  // Don't update Firestore mode here - it will be updated when Next Round is clicked
+  // This prevents students from seeing mode changes before the round starts
 }
 
 function handleModeButtonClick(event) {
@@ -362,9 +392,9 @@ function handleRandomNamesToggle(event) {
   });
 }
 
-function addResetSnapshot() {
-  resetHistory.push({
-    index: resetHistory.length + 1,
+function addRoundSnapshot() {
+  roundHistory.push({
+    index: roundHistory.length + 1,
     clicked: latestCounts.clicked,
     recordedAt: Date.now()
   });
@@ -372,7 +402,7 @@ function addResetSnapshot() {
 
 async function newSession() {
   showSetupView();
-  resetHistory = [];
+  roundHistory = [];
 
   if (studentsUnsubscribe) {
     studentsUnsubscribe();
@@ -492,6 +522,23 @@ async function newSession() {
         : clicked;
 
     updateStudentCounts(snapshot.size, respondedCount);
+
+    // Enable Round button and mode buttons when students have responded (only if round is active)
+    if (sessionStatus === "started" && isRoundActive && respondedCount > 0) {
+      if (roundButton) {
+        roundButton.disabled = false;
+      }
+      setModeButtonsEnabled(true);
+
+      // Update Firestore to indicate round has ended (students can now see results)
+      if (currentSessionId) {
+        updateDoc(doc(db, "sessions", currentSessionId), {
+          roundActive: false
+        }).catch((error) => {
+          console.warn("Unable to update round state", error);
+        });
+      }
+    }
   });
 }
 
@@ -500,21 +547,40 @@ async function startSession() {
   await updateDoc(doc(db, "sessions", currentSessionId), {
     status: "started",
     startedAt: Date.now(),
-    round: increment(1)
+    roundActive: false,
+    mode: "standard"
   });
   if (startButton) startButton.disabled = true;
+
+  sessionStatus = "started";
+  isRoundActive = false;
+  hasChosenMode = true; // Standard mode is pre-selected
+  currentMode = "standard";
+  activateModeButton("standard");
+  setModeButtonsEnabled(true);
+
+  // Enable Next Round button since Standard mode is already selected
+  if (roundButton) roundButton.disabled = false;
+
   showLiveView();
 }
 
-async function resetSession() {
+async function nextRound() {
   if (!currentSessionId) return;
 
-  addResetSnapshot();
+  // Disable Round button immediately when clicked
+  if (roundButton) roundButton.disabled = true;
+
+  // If this is not the first round, add a snapshot
+  if (isRoundActive) {
+    addRoundSnapshot();
+  }
 
   const sessionDocRef = doc(db, "sessions", currentSessionId);
   const studentsRef = collection(db, "sessions", currentSessionId, "students");
   const snapshot = await getDocs(studentsRef);
 
+  // Clear student responses
   if (!snapshot.empty) {
     const batch = writeBatch(db);
     snapshot.forEach((studentDoc) => {
@@ -529,8 +595,21 @@ async function resetSession() {
 
   await updateDoc(sessionDocRef, {
     status: "started",
-    round: increment(1)
+    round: increment(1),
+    roundActive: true,
+    mode: currentMode
   });
+
+  // Track participation opportunity when starting new round in Quick/Type/Choice mode
+  if (["quick", "type", "choice"].includes(currentMode)) {
+    participationOpportunities++;
+    currentOpportunityParticipants = new Set();
+  }
+
+  // Mark round as active and disable mode buttons
+  isRoundActive = true;
+  hasChosenMode = false;
+  setModeButtonsEnabled(false);
 
   latestTypeResponses = [];
   latestChoiceCounts = { yes: 0, no: 0 };
@@ -585,17 +664,17 @@ function drawChart() {
   const chartWidth = width - padding * 2;
   const chartHeight = height - padding * 2;
 
-  if (!resetHistory.length) {
+  if (!roundHistory.length) {
     context.fillStyle = "#6b7280";
     context.font = (18 * dpr) + "px Arial";
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText("No reset data recorded yet.", width / 2, height / 2);
+    context.fillText("No round data recorded yet.", width / 2, height / 2);
     return;
   }
 
-  const maxClicked = Math.max(1, ...resetHistory.map(entry => entry.clicked));
-  const lastIndex = resetHistory.length - 1;
+  const maxClicked = Math.max(1, ...roundHistory.map(entry => entry.clicked));
+  const lastIndex = roundHistory.length - 1;
   const getX = (index) => {
     if (lastIndex === 0) return padding + chartWidth / 2;
     return padding + chartWidth * (index / lastIndex);
@@ -612,7 +691,7 @@ function drawChart() {
   context.strokeStyle = "#4c6ef5";
   context.lineWidth = 2 * dpr;
   context.beginPath();
-  resetHistory.forEach((entry, index) => {
+  roundHistory.forEach((entry, index) => {
     const x = getX(index);
     const y = height - padding - (chartHeight * (entry.clicked / maxClicked));
     if (index === 0) {
@@ -623,7 +702,7 @@ function drawChart() {
   });
   context.stroke();
 
-  resetHistory.forEach((entry, index) => {
+  roundHistory.forEach((entry, index) => {
     const x = getX(index);
     const y = height - padding - (chartHeight * (entry.clicked / maxClicked));
     context.fillStyle = "#4c6ef5";
@@ -643,7 +722,7 @@ function drawChart() {
   context.textAlign = "center";
   context.textBaseline = "top";
   const axisLabelOffset = 28 * dpr;
-  context.fillText("Reset Number", padding + chartWidth / 2, height - padding + axisLabelOffset);
+  context.fillText("Round Number", padding + chartWidth / 2, height - padding + axisLabelOffset);
   context.save();
   context.translate(padding / 2, padding + chartHeight / 2);
   context.rotate(-Math.PI / 2);
@@ -655,7 +734,7 @@ function drawChart() {
   context.font = (12 * dpr) + "px Arial";
   context.textAlign = "center";
   context.textBaseline = "top";
-  resetHistory.forEach((entry, index) => {
+  roundHistory.forEach((entry, index) => {
     const x = getX(index);
     context.fillText(String(index + 1), x, height - padding + 16 * dpr);
   });
@@ -666,6 +745,7 @@ function initialiseDom() {
   livePanel = document.getElementById("livePanel");
   chartPanel = document.getElementById("chartPanel");
   startButton = document.getElementById("startButton");
+  roundButton = document.getElementById("roundButton");
   qrCanvas = document.getElementById("qrcode");
   studentsList = document.getElementById("students");
   studentCountLabel = document.getElementById("studentCount");
@@ -691,6 +771,6 @@ window.addEventListener("DOMContentLoaded", initialiseDom);
 
 window.newSession = newSession;
 window.startSession = startSession;
-window.resetSession = resetSession;
+window.nextRound = nextRound;
 window.finishSession = finishSession;
 window.closeChart = closeChart;
