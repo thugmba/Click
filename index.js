@@ -27,12 +27,14 @@ const db = getFirestore(app);
 let mainLayout;
 let livePanel;
 let chartPanel;
+let participationPanel;
 let startButton;
 let roundButton;
 let qrCanvas;
 let studentsList;
 let studentCountLabel;
 let chartCanvas;
+let participationTableBody;
 let randomNamesToggle;
 let modeControl;
 let modeButtons = [];
@@ -67,12 +69,15 @@ let currentOpportunityParticipants = new Set();
 let sessionStatus = "connecting";
 let isRoundActive = false;
 let hasChosenMode = false;
+let totalTrackedRounds = 0;
+let studentParticipationCount = new Map();
 
 function showSetupView() {
   document.body.classList.remove("live-mode", "chart-mode");
   if (mainLayout) mainLayout.classList.remove("hidden");
   if (livePanel) livePanel.classList.add("hidden");
   if (chartPanel) chartPanel.classList.add("hidden");
+  if (participationPanel) participationPanel.classList.add("hidden");
 }
 
 function showLiveView() {
@@ -81,6 +86,7 @@ function showLiveView() {
   if (mainLayout) mainLayout.classList.add("hidden");
   if (livePanel) livePanel.classList.remove("hidden");
   if (chartPanel) chartPanel.classList.add("hidden");
+  if (participationPanel) participationPanel.classList.add("hidden");
 }
 
 function showChartView() {
@@ -89,6 +95,15 @@ function showChartView() {
   if (mainLayout) mainLayout.classList.add("hidden");
   if (livePanel) livePanel.classList.add("hidden");
   if (chartPanel) chartPanel.classList.remove("hidden");
+  if (participationPanel) participationPanel.classList.add("hidden");
+}
+
+function showParticipationView() {
+  document.body.classList.remove("live-mode", "chart-mode");
+  if (mainLayout) mainLayout.classList.add("hidden");
+  if (livePanel) livePanel.classList.add("hidden");
+  if (chartPanel) chartPanel.classList.add("hidden");
+  if (participationPanel) participationPanel.classList.remove("hidden");
 }
 
 function resetUi() {
@@ -112,6 +127,8 @@ function resetUi() {
   sessionStatus = "connecting";
   isRoundActive = false;
   hasChosenMode = false;
+  totalTrackedRounds = 0;
+  studentParticipationCount = new Map();
 
   activateModeButton("standard");
   if (studentCountLabel) studentCountLabel.innerText = "0";
@@ -398,6 +415,32 @@ function addRoundSnapshot() {
     return;
   }
 
+  // Increment total tracked rounds
+  totalTrackedRounds++;
+
+  // Track participation for each student
+  latestStudentData.forEach(({ data }) => {
+    const name = data.name || "Unnamed";
+    let participated = false;
+
+    if (currentMode === "standard" && data.clicked) {
+      participated = true;
+    } else if (currentMode === "type" && data.textResponse && data.textResponse.trim()) {
+      participated = true;
+    } else if (currentMode === "choice" && (data.choiceResponse === "yes" || data.choiceResponse === "no")) {
+      participated = true;
+    }
+
+    if (participated) {
+      studentParticipationCount.set(name, (studentParticipationCount.get(name) || 0) + 1);
+    } else {
+      // Ensure student exists in map even if they didn't participate
+      if (!studentParticipationCount.has(name)) {
+        studentParticipationCount.set(name, 0);
+      }
+    }
+  });
+
   roundHistory.push({
     index: roundHistory.length + 1,
     clicked: latestCounts.clicked,
@@ -676,6 +719,61 @@ async function finishSession() {
   if (startButton) startButton.disabled = true;
 }
 
+function showParticipationTable() {
+  renderParticipationTable();
+  showParticipationView();
+}
+
+function renderParticipationTable() {
+  if (!participationTableBody) return;
+
+  participationTableBody.innerHTML = "";
+
+  if (totalTrackedRounds === 0) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 2;
+    cell.textContent = "No participation data recorded yet.";
+    cell.style.textAlign = "center";
+    cell.style.padding = "24px";
+    cell.style.color = "#6b7280";
+    row.appendChild(cell);
+    participationTableBody.appendChild(row);
+    return;
+  }
+
+  // Calculate participation percentages and sort
+  const participationData = [];
+  studentParticipationCount.forEach((count, name) => {
+    const percentage = totalTrackedRounds > 0 ? Math.round((count / totalTrackedRounds) * 100) : 0;
+    participationData.push({ name, percentage });
+  });
+
+  // Sort by percentage in decreasing order
+  participationData.sort((a, b) => b.percentage - a.percentage);
+
+  // Render table rows
+  participationData.forEach(({ name, percentage }) => {
+    const row = document.createElement("tr");
+
+    const nameCell = document.createElement("td");
+    nameCell.textContent = name;
+    row.appendChild(nameCell);
+
+    const percentCell = document.createElement("td");
+    percentCell.textContent = `${percentage}%`;
+    row.appendChild(percentCell);
+
+    participationTableBody.appendChild(row);
+  });
+}
+
+function closeParticipationTable() {
+  currentSessionId = null;
+  resetUi();
+  showSetupView();
+}
+
 function closeChart() {
   currentSessionId = null;
   resetUi();
@@ -779,12 +877,14 @@ function initialiseDom() {
   mainLayout = document.getElementById("mainLayout");
   livePanel = document.getElementById("livePanel");
   chartPanel = document.getElementById("chartPanel");
+  participationPanel = document.getElementById("participationPanel");
   startButton = document.getElementById("startButton");
   roundButton = document.getElementById("roundButton");
   qrCanvas = document.getElementById("qrcode");
   studentsList = document.getElementById("students");
   studentCountLabel = document.getElementById("studentCount");
   chartCanvas = document.getElementById("chartCanvas");
+  participationTableBody = document.getElementById("participationTableBody");
   randomNamesToggle = document.getElementById("randomNamesToggle");
   modeControl = document.getElementById("modeControl");
   ensureStatElements();
@@ -809,3 +909,5 @@ window.startSession = startSession;
 window.toggleRound = toggleRound;
 window.finishSession = finishSession;
 window.closeChart = closeChart;
+window.showParticipationTable = showParticipationTable;
+window.closeParticipationTable = closeParticipationTable;

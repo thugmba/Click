@@ -102,7 +102,24 @@
   <section class="panel chart-panel hidden" id="chartPanel">
     <h2>Session Summary</h2>
     <canvas id="chartCanvas"></canvas>
-    <button class="chart-panel__ok" onclick="closeChart()">OK</button>
+    <button class="chart-panel__ok" onclick="showParticipationTable()">OK</button>
+  </section>
+
+  <section class="panel participation-panel hidden" id="participationPanel">
+    <h2>Student Participation</h2>
+    <div class="participation-table-wrapper">
+      <table class="participation-table" id="participationTable">
+        <thead>
+          <tr>
+            <th>Student Name</th>
+            <th>Participation %</th>
+          </tr>
+        </thead>
+        <tbody id="participationTableBody">
+        </tbody>
+      </table>
+    </div>
+    <button class="participation-panel__ok" onclick="closeParticipationTable()">OK</button>
   </section>
 
   <footer class="footer">

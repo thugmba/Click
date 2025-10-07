@@ -1049,3 +1049,77 @@ button:disabled.chart-panel__ok {
   font-size: 14px;
   background-color: #f5f5f5;
 }
+
+.participation-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: stretch;
+  background-color: #f5f5f5;
+}
+
+.participation-panel h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.participation-table-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  border-radius: 12px;
+  background-color: #ffffff;
+  padding: 16px;
+}
+
+.participation-table {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+
+.participation-table thead {
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
+  z-index: 1;
+}
+
+.participation-table th {
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #1f1f1f;
+  border-bottom: 2px solid #dcdcdc;
+}
+
+.participation-table th:last-child {
+  text-align: right;
+}
+
+.participation-table td {
+  padding: 14px 16px;
+  color: #4a4a4a;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.participation-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+.participation-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.participation-panel__ok {
+  align-self: center;
+  padding: 12px 48px;
+}
