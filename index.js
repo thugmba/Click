@@ -523,12 +523,19 @@ async function newSession() {
 
     updateStudentCounts(snapshot.size, respondedCount);
 
-    // In Quick mode, auto-stop the round after first response
-    if (sessionStatus === "started" && isRoundActive && respondedCount > 0 && currentMode === "quick") {
-      // Auto-stop round in Quick mode
-      stopRound().catch((error) => {
-        console.warn("Unable to auto-stop round", error);
-      });
+    // Auto-stop round logic
+    if (sessionStatus === "started" && isRoundActive && respondedCount > 0) {
+      if (currentMode === "quick") {
+        // Quick mode: auto-stop after first response
+        stopRound().catch((error) => {
+          console.warn("Unable to auto-stop round", error);
+        });
+      } else if (snapshot.size > 0 && respondedCount >= snapshot.size) {
+        // Standard/Type/Choice modes: auto-stop when all students have responded
+        stopRound().catch((error) => {
+          console.warn("Unable to auto-stop round", error);
+        });
+      }
     }
   });
 }
