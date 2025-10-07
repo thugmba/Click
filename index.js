@@ -523,21 +523,12 @@ async function newSession() {
 
     updateStudentCounts(snapshot.size, respondedCount);
 
-    // Enable Round button and mode buttons when students have responded (only if round is active)
-    if (sessionStatus === "started" && isRoundActive && respondedCount > 0) {
-      if (roundButton) {
-        roundButton.disabled = false;
-      }
-      setModeButtonsEnabled(true);
-
-      // Update Firestore to indicate round has ended (students can now see results)
-      if (currentSessionId) {
-        updateDoc(doc(db, "sessions", currentSessionId), {
-          roundActive: false
-        }).catch((error) => {
-          console.warn("Unable to update round state", error);
-        });
-      }
+    // In Quick mode, auto-stop the round after first response
+    if (sessionStatus === "started" && isRoundActive && respondedCount > 0 && currentMode === "quick") {
+      // Auto-stop round in Quick mode
+      stopRound().catch((error) => {
+        console.warn("Unable to auto-stop round", error);
+      });
     }
   });
 }
@@ -559,22 +550,17 @@ async function startSession() {
   activateModeButton("standard");
   setModeButtonsEnabled(true);
 
-  // Enable Next Round button since Standard mode is already selected
-  if (roundButton) roundButton.disabled = false;
+  // Enable Start button - teacher needs to click it to begin first round
+  if (roundButton) {
+    roundButton.disabled = false;
+    roundButton.textContent = "Start";
+  }
 
   showLiveView();
 }
 
-async function nextRound() {
+async function startRound() {
   if (!currentSessionId) return;
-
-  // Disable Round button immediately when clicked
-  if (roundButton) roundButton.disabled = true;
-
-  // If this is not the first round, add a snapshot
-  if (isRoundActive) {
-    addRoundSnapshot();
-  }
 
   const sessionDocRef = doc(db, "sessions", currentSessionId);
   const studentsRef = collection(db, "sessions", currentSessionId, "students");
@@ -616,7 +602,44 @@ async function nextRound() {
   quizWinner = null;
   updateStudentCounts(snapshot.size, 0);
   renderLiveStats();
+
+  // Update button to show "Stop"
+  if (roundButton) {
+    roundButton.textContent = "Stop";
+    roundButton.disabled = false;
+  }
+
   showLiveView();
+}
+
+async function stopRound() {
+  if (!currentSessionId) return;
+
+  // Track round history before ending
+  addRoundSnapshot();
+
+  const sessionDocRef = doc(db, "sessions", currentSessionId);
+  await updateDoc(sessionDocRef, {
+    roundActive: false
+  });
+
+  // Mark round as inactive and enable mode buttons
+  isRoundActive = false;
+  setModeButtonsEnabled(true);
+
+  // Update button to show "Start"
+  if (roundButton) {
+    roundButton.textContent = "Start";
+    roundButton.disabled = false;
+  }
+}
+
+async function toggleRound() {
+  if (isRoundActive) {
+    await stopRound();
+  } else {
+    await startRound();
+  }
 }
 
 async function finishSession() {
@@ -771,6 +794,6 @@ window.addEventListener("DOMContentLoaded", initialiseDom);
 
 window.newSession = newSession;
 window.startSession = startSession;
-window.nextRound = nextRound;
+window.toggleRound = toggleRound;
 window.finishSession = finishSession;
 window.closeChart = closeChart;
