@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Teacher Control Panel</title>
+  <title>ClickPlus</title>
+  <link rel="shortcut icon" href="/favicon.ico">
   <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <script type="module" src="index.js"></script>
@@ -15,7 +16,7 @@
         <h3>Teacher Control Panel</h3>
         <div class="session-panel__actions">
           <div class="quiz-toggle session-panel__random">
-            <span id="randomNamesToggleText" class="quiz-toggle__text">Random names</span>
+            <span id="randomNamesToggleText" class="quiz-toggle__text">Random Names</span>
             <label class="toggle-switch">
               <input type="checkbox" id="randomNamesToggle" aria-labelledby="randomNamesToggleText">
               <span class="toggle-switch__slider"></span>
@@ -25,9 +26,9 @@
         </div>
       </div>
       <ol id="statusInstructions" class="status-message status-list">
-        <li>Create session</li>
-        <li>Let students scan QR code</li>
-        <li>Start session when students joined</li>
+        <li>Create session. If Random Names is enabled, each student will be automatically assigned a random name.</li>
+        <li>Ask student to scan QR code to join the session.</li>
+        <li>Start session once all students have joined.</li>
       </ol>
       <p id="statusMessage" class="status-message hidden"></p>
       <div class="session-panel__qr">
