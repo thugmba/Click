@@ -393,6 +393,11 @@ function handleRandomNamesToggle(event) {
 }
 
 function addRoundSnapshot() {
+  // Only track Standard, Type, and Choice modes (exclude Quick mode)
+  if (currentMode === "quick") {
+    return;
+  }
+
   roundHistory.push({
     index: roundHistory.length + 1,
     clicked: latestCounts.clicked,
