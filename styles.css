@@ -222,6 +222,11 @@ button:disabled {
   font-size: 144px;
   font-weight: 700;
   color: #1f1f1f;
+  transition: color 0.3s ease;
+}
+
+.live-panel__count.timer-expired {
+  color: #dc2626;
 }
 
 .live-panel__detail {
@@ -284,6 +289,21 @@ button:disabled {
   transform: scale(1.05);
 }
 
+.type-stopwatch {
+  font-size: 144px;
+  font-weight: 700;
+  color: #1f1f1f;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  transition: color 0.3s ease;
+}
+
+.type-stopwatch.timer-expired {
+  color: #dc2626;
+}
+
 .live-panel__choice {
   display: flex;
   justify-content: center;
@@ -297,6 +317,19 @@ button:disabled {
   gap: 48px;
   width: 100%;
   max-width: 720px;
+}
+
+.live-panel__choice.choice-timer-active .choice-meter {
+  grid-template-columns: 1fr;
+}
+
+.live-panel__choice.choice-timer-active .choice-meter__item--no {
+  display: none;
+}
+
+.live-panel__choice.choice-timer-active .choice-meter__item--yes {
+  justify-content: center;
+  align-items: center;
 }
 
 .choice-meter__item {
@@ -316,6 +349,11 @@ button:disabled {
   font-size: 144px;
   font-weight: 700;
   color: #1f1f1f;
+  transition: color 0.3s ease;
+}
+
+.choice-meter__value.timer-expired {
+  color: #dc2626;
 }
 
 .choice-meter__detail {
@@ -468,6 +506,7 @@ button:disabled {
 .live-panel__round,
 .live-panel__finish {
   padding: 14px 28px;
+  min-width: 105px;
 }
 
 .hidden {
@@ -525,6 +564,10 @@ body.live-mode .live-panel__count {
   font-size: clamp(8rem, 24vw, 20rem);
 }
 
+body.live-mode .live-panel__count.timer-expired {
+  color: #ff6b6b;
+}
+
 body.live-mode .live-panel__detail {
   color: rgba(255, 255, 255, 0.7);
   font-size: 22px;
@@ -539,6 +582,15 @@ body.live-mode .word-cloud__word {
   color: rgba(173, 201, 255, 0.95);
 }
 
+body.live-mode .type-stopwatch {
+  color: #ffffff;
+  font-size: clamp(8rem, 24vw, 20rem);
+}
+
+body.live-mode .type-stopwatch.timer-expired {
+  color: #ff6b6b;
+}
+
 body.live-mode .choice-meter__label {
   color: rgba(255, 255, 255, 0.7);
   font-size: 22px;
@@ -547,6 +599,10 @@ body.live-mode .choice-meter__label {
 body.live-mode .choice-meter__value {
   color: #ffffff;
   font-size: clamp(8rem, 24vw, 20rem);
+}
+
+body.live-mode .choice-meter__value.timer-expired {
+  color: #ff6b6b;
 }
 
 body.live-mode .choice-meter__percent {

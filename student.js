@@ -260,9 +260,43 @@ let sessionUnsubscribe = null;
 let myDocUnsubscribe = null;
 let sessionStatus = "connecting";
 let isJoining = false;
+let sessionRoundStartTime = null;
+let timerDuration = 10;
+let timerCheckInterval = null;
 
 updateNameDisplay(assignedName);
 refreshUiForCurrentState();
+
+// Check timer expiration every second
+function startTimerCheck() {
+  if (timerCheckInterval) clearInterval(timerCheckInterval);
+  timerCheckInterval = setInterval(() => {
+    if (roundActive && sessionRoundStartTime) {
+      const wasExpired = isTimerExpired();
+      if (wasExpired) {
+        refreshUiForCurrentState();
+      }
+    }
+  }, 1000);
+}
+
+function stopTimerCheck() {
+  if (timerCheckInterval) {
+    clearInterval(timerCheckInterval);
+    timerCheckInterval = null;
+  }
+}
+
+startTimerCheck();
+
+function isTimerExpired() {
+  // Check if timer has expired for Standard, Type, Choice modes
+  if (!sessionRoundStartTime || !roundActive) return false;
+  if (currentMode === "quick") return false; // Quick mode has no timer
+
+  const elapsed = Math.floor((Date.now() - sessionRoundStartTime) / 1000);
+  return elapsed >= timerDuration;
+}
 
 function refreshUiForCurrentState() {
   const isStandardMode = currentMode === "standard" || currentMode === "quick";
@@ -271,6 +305,8 @@ function refreshUiForCurrentState() {
   toggleElement(responseForm, currentMode === "type");
   toggleElement(choiceButtons, currentMode === "choice");
 
+  const timerExpired = isTimerExpired();
+
   if (isStandardMode) {
     updateStandardButtonState();
     return;
@@ -278,7 +314,7 @@ function refreshUiForCurrentState() {
 
   if (currentMode === "type") {
     const hasResponse = Boolean(myDocData && typeof myDocData.textResponse === "string" && myDocData.textResponse.trim());
-    const canInteract = sessionStatus === "started" && roundActive && !hasResponse;
+    const canInteract = sessionStatus === "started" && roundActive && !hasResponse && !timerExpired;
     if (responseSubmitButton) {
       responseSubmitButton.disabled = !canInteract;
       responseSubmitButton.textContent = hasResponse ? "Sent!" : "Send";
@@ -289,7 +325,7 @@ function refreshUiForCurrentState() {
         responseInput.value = storedValue;
       }
       responseInput.disabled = !canInteract;
-      responseInput.placeholder = hasResponse ? "Response sent" : (roundActive ? "Type your answer" : "Waiting for round to start");
+      responseInput.placeholder = hasResponse ? "Response sent" : (timerExpired ? "Time's up!" : (roundActive ? "Type your answer" : "Waiting for round to start"));
     }
     if (responseError && !roundActive) {
       responseError.classList.add("hidden");
@@ -299,7 +335,7 @@ function refreshUiForCurrentState() {
 
   if (currentMode === "choice") {
     const hasChoice = Boolean(myDocData && myDocData.choiceResponse);
-    const enabled = sessionStatus === "started" && roundActive && !hasChoice;
+    const enabled = sessionStatus === "started" && roundActive && !hasChoice && !timerExpired;
     [choiceYesButton, choiceNoButton].forEach((button) => {
       if (!button) return;
       button.disabled = !enabled;
@@ -346,12 +382,17 @@ function updateStandardButtonState() {
 
   // Check if round is active and if student has clicked
   const hasClicked = myDocData && myDocData.clicked;
-  const canClick = sessionStatus === "started" && roundActive && !hasClicked;
+  const timerExpired = isTimerExpired();
+  const canClick = sessionStatus === "started" && roundActive && !hasClicked && !timerExpired;
 
   if (hasClicked) {
     actionButton.dataset.clicked = "true";
     actionButton.disabled = true;
     actionButton.textContent = "Sent!";
+  } else if (timerExpired && roundActive) {
+    delete actionButton.dataset.clicked;
+    actionButton.disabled = true;
+    actionButton.textContent = "Time's up!";
   } else if (!roundActive) {
     delete actionButton.dataset.clicked;
     actionButton.disabled = true;
@@ -512,6 +553,13 @@ function subscribeToSession() {
     const nextRoundActive = sessionData.roundActive === true;
     const roundStateChanged = nextRoundActive !== roundActive;
     roundActive = nextRoundActive;
+
+    // Track round start time for timer
+    if (sessionData.roundStartTime) {
+      sessionRoundStartTime = sessionData.roundStartTime;
+    } else if (!roundActive) {
+      sessionRoundStartTime = null;
+    }
 
     // When new round starts (roundActive changes to true), reset student UI
     if (roundStateChanged && roundActive && myDocData) {

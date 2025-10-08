@@ -71,6 +71,10 @@ let isRoundActive = false;
 let hasChosenMode = false;
 let totalTrackedRounds = 0;
 let studentParticipationCount = new Map();
+let roundStartTime = null;
+let stopwatchInterval = null;
+let timerDuration = 10;
+let hasAnnouncedTimeUp = false;
 
 function showSetupView() {
   document.body.classList.remove("live-mode", "chart-mode");
@@ -114,6 +118,8 @@ function resetUi() {
     statusMessageEl.classList.add("hidden");
     statusMessageEl.innerText = "";
   }
+
+  stopStopwatch();
 
   currentMode = "standard";
   quizMode = false;
@@ -172,6 +178,102 @@ function ensureStatElements() {
   if (!choiceNoPercentEl) choiceNoPercentEl = document.getElementById("choiceNoPercent");
 }
 
+function startStopwatch() {
+  roundStartTime = Date.now();
+  hasAnnouncedTimeUp = false;
+  updateStopwatch();
+  stopwatchInterval = setInterval(updateStopwatch, 1000);
+}
+
+function stopStopwatch() {
+  if (stopwatchInterval) {
+    clearInterval(stopwatchInterval);
+    stopwatchInterval = null;
+  }
+  roundStartTime = null;
+  hasAnnouncedTimeUp = false;
+}
+
+function playTickSound(remaining) {
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+
+  // Alternating tick-tock frequencies
+  const isEven = remaining % 2 === 0;
+  oscillator.frequency.value = isEven ? 800 : 600;
+
+  // Increase volume as time runs out (from 0.1 to 0.4)
+  const volumeMultiplier = 1 + (timerDuration - remaining) / timerDuration * 3;
+  gainNode.gain.setValueAtTime(0.1 * volumeMultiplier, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+  oscillator.type = 'sine';
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.1);
+}
+
+function updateStopwatch() {
+  if (!roundStartTime) return;
+  const elapsed = Math.floor((Date.now() - roundStartTime) / 1000);
+  const remaining = Math.max(0, timerDuration - elapsed);
+  const minutes = Math.floor(remaining / 60);
+  const seconds = remaining % 60;
+  const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  const isTimeUp = remaining === 0;
+
+  // Play tick sound if there's time remaining
+  if (remaining > 0) {
+    playTickSound(remaining);
+  }
+
+  // Voice announcement when timer reaches 0
+  if (isTimeUp && !hasAnnouncedTimeUp) {
+    hasAnnouncedTimeUp = true;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance("Time's up!");
+      const voices = window.speechSynthesis.getVoices();
+      const maleVoice = voices.find(voice => voice.name.includes('Male') || voice.name.includes('Daniel') || voice.name.includes('David'));
+      if (maleVoice) utterance.voice = maleVoice;
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  }
+
+  // Update standard mode timer
+  if (currentMode === "standard") {
+    if (clickedCountEl) {
+      clickedCountEl.innerText = timeString;
+      clickedCountEl.classList.toggle('timer-expired', isTimeUp);
+    }
+    if (clickedDetailEl) clickedDetailEl.innerText = "Round in progress...";
+  }
+
+  // Update type mode timer
+  if (currentMode === "type") {
+    const typeStopwatch = document.getElementById("typeStopwatch");
+    if (typeStopwatch) {
+      typeStopwatch.textContent = timeString;
+      typeStopwatch.classList.toggle('timer-expired', isTimeUp);
+    }
+  }
+
+  // Update choice mode timer
+  if (currentMode === "choice") {
+    ensureStatElements();
+    if (choiceYesEl) {
+      choiceYesEl.innerText = timeString;
+      choiceYesEl.classList.toggle('timer-expired', isTimeUp);
+    }
+  }
+}
+
 function renderLiveStats() {
   ensureStatElements();
 
@@ -180,6 +282,9 @@ function renderLiveStats() {
   if (standardStatsEl) standardStatsEl.classList.toggle("hidden", !standardVisible);
   if (typeStatsEl) typeStatsEl.classList.toggle("hidden", currentMode !== "type");
   if (choiceStatsEl) choiceStatsEl.classList.toggle("hidden", currentMode !== "choice");
+
+  // Show stopwatch for Standard, Type, Choice modes when round is active
+  const shouldShowStopwatch = isRoundActive && (currentMode === "standard" || currentMode === "type" || currentMode === "choice");
 
   if (standardVisible && clickedCountEl && clickedDetailEl) {
     if (quizMode) {
@@ -192,6 +297,9 @@ function renderLiveStats() {
         clickedDetailEl.innerText = "Waiting for first response...";
       }
       if (clickedPercentEl) clickedPercentEl.innerText = "";
+    } else if (shouldShowStopwatch && currentMode === "standard") {
+      // Stopwatch is updated by updateStopwatch function
+      if (clickedPercentWrap) clickedPercentWrap.classList.add("hidden");
     } else {
       if (clickedPercentWrap) clickedPercentWrap.classList.remove("hidden");
       clickedCountEl.innerText = String(latestCounts.clicked);
@@ -202,23 +310,89 @@ function renderLiveStats() {
   }
 
   if (currentMode === "type") {
-    const responseCount = latestTypeResponses.length;
-    if (typeResponseCountEl) {
-      typeResponseCountEl.innerText = `${responseCount} response${responseCount === 1 ? "" : "s"}`;
+    if (shouldShowStopwatch) {
+      // Show timer instead of responses
+      if (typeResponseCountEl) {
+        typeResponseCountEl.innerText = "Round in progress...";
+      }
+      if (typeWordCloudEl) {
+        typeWordCloudEl.innerHTML = "";
+        const stopwatchDiv = document.createElement("div");
+        stopwatchDiv.className = "type-stopwatch";
+        stopwatchDiv.id = "typeStopwatch";
+        const timeString = roundStartTime
+          ? (() => {
+              const elapsed = Math.floor((Date.now() - roundStartTime) / 1000);
+              const remaining = Math.max(0, timerDuration - elapsed);
+              const minutes = Math.floor(remaining / 60);
+              const seconds = remaining % 60;
+              return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            })()
+          : "00:10";
+        stopwatchDiv.textContent = timeString;
+        const isTimeUp = roundStartTime && Math.floor((Date.now() - roundStartTime) / 1000) >= timerDuration;
+        if (isTimeUp) stopwatchDiv.classList.add('timer-expired');
+        typeWordCloudEl.appendChild(stopwatchDiv);
+      }
+    } else {
+      const responseCount = latestTypeResponses.length;
+      if (typeResponseCountEl) {
+        typeResponseCountEl.innerText = `${responseCount} response${responseCount === 1 ? "" : "s"}`;
+      }
+      renderWordCloud(latestTypeResponses);
     }
-    renderWordCloud(latestTypeResponses);
   }
 
   if (currentMode === "choice") {
-    if (choiceYesEl) choiceYesEl.innerText = latestChoiceCounts.yes;
-    if (choiceNoEl) choiceNoEl.innerText = latestChoiceCounts.no;
+    if (shouldShowStopwatch) {
+      // Show timer instead of choice results
+      const timeString = roundStartTime
+        ? (() => {
+            const elapsed = Math.floor((Date.now() - roundStartTime) / 1000);
+            const remaining = Math.max(0, timerDuration - elapsed);
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+          })()
+        : "00:10";
 
-    const total = latestCounts.total;
-    const yesPercent = total > 0 ? Math.round((latestChoiceCounts.yes / total) * 100) : 0;
-    const noPercent = total > 0 ? Math.round((latestChoiceCounts.no / total) * 100) : 0;
+      const isTimeUp = roundStartTime && Math.floor((Date.now() - roundStartTime) / 1000) >= timerDuration;
 
-    if (choiceYesPercentEl) choiceYesPercentEl.innerText = `${yesPercent}%`;
-    if (choiceNoPercentEl) choiceNoPercentEl.innerText = `${noPercent}%`;
+      // Show timer in center, hide both columns
+      if (choiceStatsEl) choiceStatsEl.classList.add('choice-timer-active');
+      if (choiceYesEl) {
+        choiceYesEl.innerText = timeString;
+        choiceYesEl.classList.toggle('timer-expired', isTimeUp);
+      }
+      if (choiceNoEl) choiceNoEl.innerText = "";
+
+      // Hide labels and percentages during round
+      const yesDetailEl = choiceYesEl?.parentElement?.querySelector('.choice-meter__detail');
+      const noDetailEl = choiceNoEl?.parentElement?.querySelector('.choice-meter__detail');
+      if (yesDetailEl) yesDetailEl.style.visibility = 'hidden';
+      if (noDetailEl) noDetailEl.style.visibility = 'hidden';
+    } else {
+      // Show choice results
+      if (choiceStatsEl) choiceStatsEl.classList.remove('choice-timer-active');
+      if (choiceYesEl) {
+        choiceYesEl.innerText = latestChoiceCounts.yes;
+        choiceYesEl.classList.remove('timer-expired');
+      }
+      if (choiceNoEl) choiceNoEl.innerText = latestChoiceCounts.no;
+
+      const total = latestCounts.total;
+      const yesPercent = total > 0 ? Math.round((latestChoiceCounts.yes / total) * 100) : 0;
+      const noPercent = total > 0 ? Math.round((latestChoiceCounts.no / total) * 100) : 0;
+
+      if (choiceYesPercentEl) choiceYesPercentEl.innerText = `${yesPercent}%`;
+      if (choiceNoPercentEl) choiceNoPercentEl.innerText = `${noPercent}%`;
+
+      // Show labels and percentages
+      const yesDetailEl = choiceYesEl?.parentElement?.querySelector('.choice-meter__detail');
+      const noDetailEl = choiceNoEl?.parentElement?.querySelector('.choice-meter__detail');
+      if (yesDetailEl) yesDetailEl.style.visibility = 'visible';
+      if (noDetailEl) noDetailEl.style.visibility = 'visible';
+    }
   }
 }
 
@@ -270,7 +444,7 @@ function renderWordCloud(responses) {
     const fontSize = 18 + Math.round(scale * 26);
     span.style.fontSize = `${fontSize}px`;
     span.style.opacity = String(0.6 + scale * 0.4);
-    span.textContent = word.charAt(0).toUpperCase() + word.slice(1);
+    span.textContent = word;
     fragment.appendChild(span);
   });
 
@@ -281,6 +455,9 @@ function renderStudentsList(students) {
   if (!studentsList) return;
   studentsList.innerHTML = "";
 
+  // Hide response status during active rounds for Standard, Type, Choice modes
+  const shouldHideResponses = isRoundActive && (currentMode === "standard" || currentMode === "type" || currentMode === "choice");
+
   students.forEach(({ data }) => {
     const name = data.name || "Unnamed";
     const button = document.createElement("button");
@@ -289,7 +466,10 @@ function renderStudentsList(students) {
     let className = "student-item";
     let label = name;
 
-    if (currentMode === "standard") {
+    if (shouldHideResponses) {
+      // Show only names during active rounds
+      label = name;
+    } else if (currentMode === "standard") {
       if (data.clicked) className += " student-item--clicked";
     } else if (currentMode === "quick") {
       if (quizWinner && quizWinner === name) {
@@ -638,7 +818,8 @@ async function startRound() {
     status: "started",
     round: increment(1),
     roundActive: true,
-    mode: currentMode
+    mode: currentMode,
+    roundStartTime: Date.now()
   });
 
   // Track participation opportunity when starting new round in Quick/Type/Choice mode
@@ -656,6 +837,12 @@ async function startRound() {
   latestChoiceCounts = { yes: 0, no: 0 };
   quizWinner = null;
   updateStudentCounts(snapshot.size, 0);
+
+  // Start stopwatch for Standard, Type, Choice modes
+  if (currentMode === "standard" || currentMode === "type" || currentMode === "choice") {
+    startStopwatch();
+  }
+
   renderLiveStats();
 
   // Update button to show "Stop"
@@ -670,6 +857,9 @@ async function startRound() {
 async function stopRound() {
   if (!currentSessionId) return;
 
+  // Stop stopwatch
+  stopStopwatch();
+
   // Track round history before ending
   addRoundSnapshot();
 
@@ -681,6 +871,10 @@ async function stopRound() {
   // Mark round as inactive and enable mode buttons
   isRoundActive = false;
   setModeButtonsEnabled(true);
+
+  // Re-render to show results
+  renderLiveStats();
+  renderStudentsList(latestStudentData);
 
   // Update button to show "Start"
   if (roundButton) {
@@ -904,6 +1098,23 @@ function initialiseDom() {
 
 window.addEventListener("DOMContentLoaded", initialiseDom);
 
+function openStudentWindow(event) {
+  event.preventDefault();
+  const url = event.currentTarget.href;
+  if (!url) return;
+
+  const width = 400;
+  const height = 800;
+  const left = (window.screen.width - width) / 2;
+  const top = (window.screen.height - height) / 2;
+
+  window.open(
+    url,
+    '_blank',
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+  );
+}
+
 window.newSession = newSession;
 window.startSession = startSession;
 window.toggleRound = toggleRound;
@@ -911,3 +1122,4 @@ window.finishSession = finishSession;
 window.closeChart = closeChart;
 window.showParticipationTable = showParticipationTable;
 window.closeParticipationTable = closeParticipationTable;
+window.openStudentWindow = openStudentWindow;

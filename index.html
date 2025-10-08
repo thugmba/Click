@@ -13,7 +13,7 @@
   <div class="main-layout" id="mainLayout">
     <section class="panel session-panel">
       <div class="session-panel__header">
-        <h3>Teacher Control Panel</h3>
+        <h3>Control Center</h3>
         <div class="session-panel__actions">
           <div class="quiz-toggle session-panel__random">
             <span id="randomNamesToggleText" class="quiz-toggle__text">Random Names</span>
@@ -32,7 +32,7 @@
       </ol>
       <p id="statusMessage" class="status-message hidden"></p>
       <div class="session-panel__qr">
-        <a id="qrUrl" class="qr-url" href="" target="_blank"></a>
+        <a id="qrUrl" class="qr-url" href="" onclick="openStudentWindow(event)"></a>
         <canvas id="qrcode"></canvas>
       </div>
     </section>
