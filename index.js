@@ -244,6 +244,13 @@ function updateStopwatch() {
       utterance.volume = 1.0;
       window.speechSynthesis.speak(utterance);
     }
+
+    // Auto-stop round for Standard, Type, Choice modes when time is up
+    if (isRoundActive && (currentMode === "standard" || currentMode === "type" || currentMode === "choice")) {
+      stopRound().catch((error) => {
+        console.warn("Unable to auto-stop round after timer", error);
+      });
+    }
   }
 
   // Update standard mode timer
@@ -1153,6 +1160,20 @@ function openStudentWindow(event) {
   );
 }
 
+function openHelpModal() {
+  const helpModal = document.getElementById("helpModal");
+  if (helpModal) {
+    helpModal.classList.remove("hidden");
+  }
+}
+
+function closeHelpModal() {
+  const helpModal = document.getElementById("helpModal");
+  if (helpModal) {
+    helpModal.classList.add("hidden");
+  }
+}
+
 window.newSession = newSession;
 window.startSession = startSession;
 window.toggleRound = toggleRound;
@@ -1161,3 +1182,5 @@ window.closeChart = closeChart;
 window.showParticipationTable = showParticipationTable;
 window.closeParticipationTable = closeParticipationTable;
 window.openStudentWindow = openStudentWindow;
+window.openHelpModal = openHelpModal;
+window.closeHelpModal = closeHelpModal;
