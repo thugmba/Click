@@ -1162,9 +1162,53 @@ function openStudentWindow(event) {
 
 function openHelpModal() {
   const helpModal = document.getElementById("helpModal");
-  if (helpModal) {
-    helpModal.classList.remove("hidden");
+  const helpModalBody = document.getElementById("helpModalBody");
+
+  if (!helpModal || !helpModalBody) return;
+
+  // Determine which content to show based on current mode
+  const isLiveMode = document.body.classList.contains("live-mode");
+
+  if (isLiveMode) {
+    // Show "How to Start" content for live dashboard
+    helpModalBody.innerHTML = `
+      <h2>How to Start</h2>
+      <p><strong>Teacher selects a game mode, then clicks the Start button.</strong></p>
+
+      <hr class="modal__divider">
+
+      <h3>Standard Mode</h3>
+      <p><strong>Measure task completion.</strong> Students click the button when they finish their assigned task. The screen displays how many students have completed. Useful for tracking progress during individual work.</p>
+      <p><strong>Game ends when:</strong> All students respond, teacher clicks Stop, or time runs out.</p>
+
+      <h3>Quick Mode</h3>
+      <p><strong>Speed competition game.</strong> Students race to click the button first. The name of the fastest student appears on the screen. Great for quick-fire quiz questions or reaction challenges.</p>
+      <p><strong>Game ends when:</strong> First student clicks the button.</p>
+
+      <h3>Type Mode</h3>
+      <p><strong>Collect text responses.</strong> Students type their answers into a text field. All responses are collected and displayed together as a word cloud on the screen. Perfect for brainstorming or gathering opinions.</p>
+      <p><strong>Game ends when:</strong> All students respond, teacher clicks Stop, or time runs out.</p>
+
+      <h3>Choice Mode</h3>
+      <p><strong>Yes or No voting.</strong> Students select either Yes or No to respond. Vote results are displayed on screen showing the distribution of answers. Ideal for polls, decisions, or quick assessments.</p>
+      <p><strong>Game ends when:</strong> All students respond, teacher clicks Stop, or time runs out.</p>
+
+      <hr class="modal__divider">
+
+      <h2>How to Exit</h2>
+      <p><strong>Press the Exit button to close the session completely and view session statistics.</strong></p>
+    `;
+  } else {
+    // Show "About ClickPlus" content for main page
+    helpModalBody.innerHTML = `
+      <h2>About ClickPlus</h2>
+      <p>ClickPlus makes student engagement simple and seamless. Create a session, wait for students to join, then start engaging.</p>
+      <p>The Random Names feature is temporary and for testing only.</p>
+      <p>We'd appreciate your feedback on this platform. Please send it <a href="https://forms.cloud.microsoft/r/sgxBfXLnmd" target="_blank">here</a>.</p>
+    `;
   }
+
+  helpModal.classList.remove("hidden");
 }
 
 function closeHelpModal() {
