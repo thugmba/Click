@@ -1179,3 +1179,87 @@ button:disabled.chart-panel__ok {
   align-self: center;
   padding: 12px 48px;
 }
+
+/* Leaderboard styles */
+.leaderboard-name {
+  font-weight: 600;
+  width: 30%;
+}
+
+.leaderboard-percent {
+  text-align: right;
+  width: 70%;
+}
+
+.progress-container {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  background-color: #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 16px;
+  animation: fillProgress 1.5s ease-out forwards;
+}
+
+@keyframes fillProgress {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--target-width);
+  }
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  font-weight: 600;
+  color: #1f1f1f;
+  font-size: 14px;
+  z-index: 1;
+}
+
+/* Ranking tier colors */
+.rank-gold .leaderboard-name {
+  color: #d97706;
+}
+
+.rank-gold .progress-bar {
+  background: linear-gradient(90deg, #fbbf24 0%, #d97706 100%);
+}
+
+.rank-silver .leaderboard-name {
+  color: #64748b;
+}
+
+.rank-silver .progress-bar {
+  background: linear-gradient(90deg, #cbd5e1 0%, #64748b 100%);
+}
+
+.rank-bronze .leaderboard-name {
+  color: #92400e;
+}
+
+.rank-bronze .progress-bar {
+  background: linear-gradient(90deg, #f59e0b 0%, #92400e 100%);
+}
+
+.rank-top10 .leaderboard-name {
+  color: #059669;
+}
+
+.rank-top10 .progress-bar {
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+}

@@ -946,16 +946,54 @@ function renderParticipationTable() {
   // Sort by percentage in decreasing order
   participationData.sort((a, b) => b.percentage - a.percentage);
 
-  // Render table rows
-  participationData.forEach(({ name, percentage }) => {
+  // Render table rows with leaderboard styling
+  participationData.forEach(({ name, percentage }, index) => {
     const row = document.createElement("tr");
+    const rank = index + 1;
+
+    // Determine emoji and color tier
+    let emoji = "";
+    let tierClass = "";
+    if (rank === 1) {
+      emoji = "🥇";
+      tierClass = "rank-gold";
+    } else if (rank === 2) {
+      emoji = "🥈";
+      tierClass = "rank-silver";
+    } else if (rank === 3) {
+      emoji = "🥉";
+      tierClass = "rank-bronze";
+    } else if (rank <= 10) {
+      emoji = "🏆";
+      tierClass = "rank-top10";
+    }
+
+    row.className = tierClass;
 
     const nameCell = document.createElement("td");
-    nameCell.textContent = name;
+    nameCell.className = "leaderboard-name";
+    nameCell.textContent = `${emoji} ${name}`.trim();
     row.appendChild(nameCell);
 
     const percentCell = document.createElement("td");
-    percentCell.textContent = `${percentage}%`;
+    percentCell.className = "leaderboard-percent";
+
+    // Create progress bar container
+    const progressContainer = document.createElement("div");
+    progressContainer.className = "progress-container";
+
+    const progressBar = document.createElement("div");
+    progressBar.className = "progress-bar";
+    progressBar.style.setProperty('--target-width', `${percentage}%`);
+
+    const progressText = document.createElement("span");
+    progressText.className = "progress-text";
+    progressText.textContent = `${percentage}%`;
+
+    progressContainer.appendChild(progressBar);
+    progressContainer.appendChild(progressText);
+    percentCell.appendChild(progressContainer);
+
     row.appendChild(percentCell);
 
     participationTableBody.appendChild(row);
